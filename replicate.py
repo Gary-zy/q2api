@@ -5,6 +5,16 @@ from typing import Dict, Optional, Tuple, Iterator, List, Generator, Any
 import struct
 import requests
 
+class StreamTracker:
+    def __init__(self):
+        self.has_content = False
+    
+    def track(self, gen: Generator[str, None, None]) -> Generator[str, None, None]:
+        for item in gen:
+            if item:
+                self.has_content = True
+            yield item
+
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATE_PATH = BASE_DIR / "templates" / "streaming_request.json"
 
@@ -175,7 +185,7 @@ def inject_model(body_json: Dict[str, Any], model: Optional[str]) -> None:
     except Exception:
         pass
 
-def send_chat_request(access_token: str, messages: List[Dict[str, Any]], model: Optional[str] = None, stream: bool = False, timeout: Tuple[int,int] = (15,300)) -> Tuple[Optional[str], Optional[Generator[str, None, None]]]:
+def send_chat_request(access_token: str, messages: List[Dict[str, Any]], model: Optional[str] = None, stream: bool = False, timeout: Tuple[int,int] = (15,300)) -> Tuple[Optional[str], Optional[Generator[str, None, None]], bool]:
     url, headers_from_log, body_json = load_template()
     headers_from_log["amz-sdk-invocation-id"] = str(uuid.uuid4())
     try:
@@ -196,6 +206,7 @@ def send_chat_request(access_token: str, messages: List[Dict[str, Any]], model: 
             err = f"HTTP {resp.status_code}"
         raise requests.HTTPError(f"Upstream error {resp.status_code}: {err}", response=resp)
     parser = AwsEventStreamParser()
+    tracker = StreamTracker()
     def _iter_text() -> Generator[str, None, None]:
         for chunk in resp.iter_content(chunk_size=None):
             if not chunk:
@@ -215,9 +226,9 @@ def send_chat_request(access_token: str, messages: List[Dict[str, Any]], model: 
                     except Exception:
                         pass
     if stream:
-        return None, _iter_text()
+        return None, tracker.track(_iter_text()), tracker
     else:
         buf = []
-        for t in _iter_text():
+        for t in tracker.track(_iter_text()):
             buf.append(t)
-        return "".join(buf), None
+        return "".join(buf), None, tracker

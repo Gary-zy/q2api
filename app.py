@@ -73,13 +73,16 @@ def _ensure_db():
             )
             """
         )
-        # add enabled column if missing
+        # add columns if missing
         try:
             cols = [row[1] for row in conn.execute("PRAGMA table_info(accounts)").fetchall()]
             if "enabled" not in cols:
                 conn.execute("ALTER TABLE accounts ADD COLUMN enabled INTEGER DEFAULT 1")
+            if "error_count" not in cols:
+                conn.execute("ALTER TABLE accounts ADD COLUMN error_count INTEGER DEFAULT 0")
+            if "success_count" not in cols:
+                conn.execute("ALTER TABLE accounts ADD COLUMN success_count INTEGER DEFAULT 0")
         except Exception:
-            # best-effort; ignore if cannot alter (should not happen for SQLite)
             pass
         conn.commit()
 
@@ -122,6 +125,7 @@ def _parse_allowed_keys_env() -> List[str]:
     return keys
 
 ALLOWED_API_KEYS: List[str] = _parse_allowed_keys_env()
+MAX_ERROR_COUNT: int = int(os.getenv("MAX_ERROR_COUNT", "100"))
 
 def _extract_bearer(token_header: Optional[str]) -> Optional[str]:
     if not token_header:
@@ -257,6 +261,23 @@ def get_account(account_id: str) -> Dict[str, Any]:
             raise HTTPException(status_code=404, detail="Account not found")
         return _row_to_dict(row)
 
+def _update_stats(account_id: str, success: bool) -> None:
+    with _conn() as conn:
+        if success:
+            conn.execute("UPDATE accounts SET success_count=success_count+1, error_count=0, updated_at=? WHERE id=?",
+                        (time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()), account_id))
+        else:
+            row = conn.execute("SELECT error_count FROM accounts WHERE id=?", (account_id,)).fetchone()
+            if row:
+                new_count = (row[0] or 0) + 1
+                if new_count >= MAX_ERROR_COUNT:
+                    conn.execute("UPDATE accounts SET error_count=?, enabled=0, updated_at=? WHERE id=?",
+                               (new_count, time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()), account_id))
+                else:
+                    conn.execute("UPDATE accounts SET error_count=?, updated_at=? WHERE id=?",
+                               (new_count, time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()), account_id))
+        conn.commit()
+
 # ------------------------------------------------------------------------------
 # Dependencies
 # ------------------------------------------------------------------------------
@@ -307,7 +328,7 @@ def chat_completions(req: ChatCompletionRequest, account: Dict[str, Any] = Depen
     model = req.model
     do_stream = bool(req.stream)
 
-    def _send_upstream(stream: bool) -> Tuple[Optional[str], Optional[Generator[str, None, None]]]:
+    def _send_upstream(stream: bool) -> Tuple[Optional[str], Optional[Generator[str, None, None]], Any]:
         access = account.get("accessToken")
         if not access:
             refreshed = refresh_access_token_in_db(account["id"])
@@ -327,41 +348,54 @@ def chat_completions(req: ChatCompletionRequest, account: Dict[str, Any] = Depen
             raise
 
     if not do_stream:
-        text, _ = _send_upstream(stream=False)
-        return JSONResponse(content=_openai_non_streaming_response(text or "", model))
+        try:
+            text, _, tracker = _send_upstream(stream=False)
+            _update_stats(account["id"], bool(text))
+            return JSONResponse(content=_openai_non_streaming_response(text or "", model))
+        except Exception as e:
+            _update_stats(account["id"], False)
+            raise
     else:
         created = int(time.time())
         stream_id = f"chatcmpl-{uuid.uuid4()}"
         model_used = model or "unknown"
 
         def event_gen() -> Generator[str, None, None]:
-            yield _sse_format({
-                "id": stream_id,
-                "object": "chat.completion.chunk",
-                "created": created,
-                "model": model_used,
-                "choices": [{"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}],
-            })
-            _, it = _send_upstream(stream=True)
-            assert it is not None
-            for piece in it:
-                if not piece:
-                    continue
+            tracker = None
+            try:
                 yield _sse_format({
                     "id": stream_id,
                     "object": "chat.completion.chunk",
                     "created": created,
                     "model": model_used,
-                    "choices": [{"index": 0, "delta": {"content": piece}, "finish_reason": None}],
+                    "choices": [{"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}],
                 })
-            yield _sse_format({
-                "id": stream_id,
-                "object": "chat.completion.chunk",
-                "created": created,
-                "model": model_used,
-                "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
-            })
-            yield "data: [DONE]\n\n"
+                _, it, tracker = _send_upstream(stream=True)
+                assert it is not None
+                for piece in it:
+                    if not piece:
+                        continue
+                    yield _sse_format({
+                        "id": stream_id,
+                        "object": "chat.completion.chunk",
+                        "created": created,
+                        "model": model_used,
+                        "choices": [{"index": 0, "delta": {"content": piece}, "finish_reason": None}],
+                    })
+                yield _sse_format({
+                    "id": stream_id,
+                    "object": "chat.completion.chunk",
+                    "created": created,
+                    "model": model_used,
+                    "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+                })
+                yield "data: [DONE]\n\n"
+                if tracker:
+                    _update_stats(account["id"], tracker.has_content)
+            except Exception:
+                if tracker:
+                    _update_stats(account["id"], tracker.has_content)
+                raise
 
         return StreamingResponse(event_gen(), media_type="text/event-stream")
 
