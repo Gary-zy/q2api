@@ -744,4 +744,4 @@ server {
 
 - [amq2api](https://github.com/mucsbr/amq2api) - Claude æ¶ˆæ¯æ ¼å¼è½¬æ¢å‚è€ƒ
 - FastAPI - ç°ä»£ Python Web æ¡†æ¶
-- Amazon Q Developer - åº•å±‚ AI æœåŠ¡
+- Amazon Q Developer - åº•å±‚ AI æœåŠ¡"²âÊÔË«ÉÏÓÎÍÆËÍ" 
