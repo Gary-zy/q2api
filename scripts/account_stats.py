@@ -2,6 +2,11 @@
 import sys
 import asyncio
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load .env file from parent directory
+BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / ".env")
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))

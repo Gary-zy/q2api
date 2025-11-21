@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 import httpx
 import tiktoken
 
-from db import get_database_backend, init_db, close_db, row_to_dict
+from db import init_db, close_db, row_to_dict
 
 # ------------------------------------------------------------------------------
 # Tokenizer
@@ -195,6 +195,9 @@ async def _refresh_stale_tokens():
     while True:
         try:
             await asyncio.sleep(300)  # 5 minutes
+            if _db is None:
+                print("[Error] Database not initialized, skipping token refresh cycle.")
+                continue
             now = time.time()
             rows = await _db.fetchall("SELECT id, last_refresh_time FROM accounts WHERE enabled=1")
             for row in rows:

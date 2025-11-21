@@ -136,7 +136,7 @@ class PostgresBackend(DatabaseBackend):
 
     def __init__(self, dsn: str):
         self._dsn = dsn
-        self._pool: Optional[asyncpg.pool.Pool] = None
+        self._pool: "Optional[asyncpg.pool.Pool]" = None
         self._initialized = False
 
     async def initialize(self) -> None:
@@ -150,10 +150,10 @@ class PostgresBackend(DatabaseBackend):
                 CREATE TABLE IF NOT EXISTS accounts (
                     id TEXT PRIMARY KEY,
                     label TEXT,
-                    "clientId" TEXT,
-                    "clientSecret" TEXT,
-                    "refreshToken" TEXT,
-                    "accessToken" TEXT,
+                    clientId TEXT,
+                    clientSecret TEXT,
+                    refreshToken TEXT,
+                    accessToken TEXT,
                     other TEXT,
                     last_refresh_time TEXT,
                     last_refresh_status TEXT,
@@ -352,7 +352,7 @@ async def close_db() -> None:
 
 
 # Helper functions for common operations
-def row_to_dict(row: Dict[str, Any]) -> Dict[str, Any]:
+def row_to_dict(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Convert a database row to dict with JSON parsing for 'other' field."""
     if row is None:
         return None
