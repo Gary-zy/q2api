@@ -699,7 +699,8 @@ async def claude_messages(req: ClaudeRequest, account: Dict[str, Any] = Depends(
                 await _update_stats(account["id"], False)
                 raise
 
-        if req.stream:
+        # 强制使用流式响应（Claude Code 需要）
+        if req.stream or True:  # 始终返回流式
             return StreamingResponse(event_generator(), media_type="text/event-stream")
         else:
             # Accumulate for non-streaming
