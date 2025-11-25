@@ -4,7 +4,7 @@
 
 [![Star History Chart](https://api.star-history.com/svg?repos=CassiopeiaCode/q2api&type=date&legend=top-left)](https://www.star-history.com/#CassiopeiaCode/q2api&type=date&legend=top-left)
 
-将 Amazon Q Developer 转换为兼容 OpenAI 和 Claude API 的服务，支持多账号管理、流式响应和智能负载均衡。
+将 Amazon Q Developer 转换为兼容 OpenAI 和 Claude API 的服务，支持多账号管理、流式响应和智能负载均衡。 侧事故
 
 **项目地址：**
 - GitHub: https://github.com/CassiopeiaCode/q2api
