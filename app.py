@@ -1043,6 +1043,7 @@ if CONSOLE_ENABLED:
             )
 
     @app.get("/login", response_class=FileResponse)
+    @app.get("/login.html", response_class=FileResponse)
     def login_page():
         """Serve the login page"""
         path = BASE_DIR / "frontend" / "login.html"
