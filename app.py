@@ -890,10 +890,11 @@ async def chat_completions(req: ChatCompletionRequest, account: Dict[str, Any] =
     model = req.model
     do_stream = bool(req.stream)
 
-    async def _send_upstream(stream: bool) -> Tuple[Optional[str], Optional[AsyncGenerator[str, None]], Any]:
-        access = account.get("accessToken")
+    async def _send_upstream(stream: bool, current_account: Optional[Dict[str, Any]] = None) -> Tuple[Optional[str], Optional[AsyncGenerator[str, None]], Any]:
+        used_account = current_account or account
+        access = used_account.get("accessToken")
         if not access:
-            refreshed = await refresh_access_token_in_db(account["id"])
+            refreshed = await refresh_access_token_in_db(used_account["id"])
             access = refreshed.get("accessToken")
             if not access:
                 raise HTTPException(status_code=502, detail="Access token unavailable after refresh")
@@ -902,16 +903,21 @@ async def chat_completions(req: ChatCompletionRequest, account: Dict[str, Any] =
         for attempt in range(MAX_RETRIES + 1):
             try:
                 result = await send_chat_request(access, [m.model_dump() for m in req.messages], model=model, stream=stream, client=GLOBAL_CLIENT)
-                if attempt > 0:
-                    print(f"[账户 {account['id'][:8]}] 重试成功 (第{attempt}次)")
+                if attempt > 0 or current_account:
+                    print(f"[账户 {used_account['id'][:8]}] 重试成功")
                 return result[0], result[1], result[2]
             except Exception as e:
                 last_error = e
                 error_type = type(e).__name__
-                should_retry = "Timeout" in error_type or "ConnectError" in error_type or "NetworkError" in error_type
+                error_str = str(e)
 
-                if should_retry and attempt < MAX_RETRIES:
-                    print(f"[账户 {account['id'][:8]}] 请求失败，{RETRY_DELAY}秒后重试 ({attempt + 1}/{MAX_RETRIES}): {error_type}")
+                # 判断是否需要同账户重试
+                should_retry_same = "Timeout" in error_type or "ConnectError" in error_type or "NetworkError" in error_type
+                # 判断是否是封禁错误（需要换号）
+                is_ban_error = "400" in error_str or "401" in error_str or "403" in error_str or "429" in error_str or "AccessDenied" in error_str
+
+                if should_retry_same and attempt < MAX_RETRIES:
+                    print(f"[账户 {used_account['id'][:8]}] 网络错误，{RETRY_DELAY}秒后重试 ({attempt + 1}/{MAX_RETRIES}): {error_type}")
                     await asyncio.sleep(RETRY_DELAY)
                 else:
                     raise
@@ -919,39 +925,83 @@ async def chat_completions(req: ChatCompletionRequest, account: Dict[str, Any] =
         raise last_error
 
     if not do_stream:
-        try:
-            # Calculate prompt tokens
-            prompt_text = "".join([m.content for m in req.messages if isinstance(m.content, str)])
-            prompt_tokens = count_tokens(prompt_text)
+        # 换号重试逻辑
+        max_account_retries = 3
+        used_accounts = [account["id"]]
+        current_acc = account
 
-            text, _, tracker = await _send_upstream(stream=False)
-            await _update_stats(account["id"], bool(text))
-            
-            completion_tokens = count_tokens(text or "")
-            
-            return JSONResponse(content=_openai_non_streaming_response(
-                text or "",
-                model,
-                prompt_tokens=prompt_tokens,
-                completion_tokens=completion_tokens
-            ))
-        except Exception as e:
-            print(f"非流式聊天错误: {type(e).__name__}: {e}")
-            await _update_stats(account["id"], False, e)
-            raise
+        for acc_attempt in range(max_account_retries):
+            try:
+                # Calculate prompt tokens
+                prompt_text = "".join([m.content for m in req.messages if isinstance(m.content, str)])
+                prompt_tokens = count_tokens(prompt_text)
+
+                text, _, tracker = await _send_upstream(False, current_acc if acc_attempt > 0 else None)
+                await _update_stats(current_acc["id"], bool(text))
+
+                completion_tokens = count_tokens(text or "")
+
+                return JSONResponse(content=_openai_non_streaming_response(
+                    text or "",
+                    model,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens
+                ))
+            except Exception as e:
+                await _update_stats(current_acc["id"], False, e)
+
+                # 如果还有重试机会，换号重试
+                if acc_attempt < max_account_retries - 1:
+                    print(f"[账户 {current_acc['id'][:8]}] 失败，尝试换号重试")
+                    # 获取新账户
+                    candidates = await _list_enabled_accounts()
+                    candidates = [c for c in candidates if c["id"] not in used_accounts]
+                    if candidates:
+                        current_acc = random.choice(candidates)
+                        used_accounts.append(current_acc["id"])
+                        print(f"[账户 {current_acc['id'][:8]}] 使用新账户重试")
+                        continue
+
+                print(f"非流式聊天错误: {type(e).__name__}: {e}")
+                raise
     else:
         created = int(time.time())
         stream_id = f"chatcmpl-{uuid.uuid4()}"
         model_used = model or "unknown"
-        
-        it = None
-        try:
-            # Calculate prompt tokens
-            prompt_text = "".join([m.content for m in req.messages if isinstance(m.content, str)])
-            prompt_tokens = count_tokens(prompt_text)
 
-            _, it, tracker = await _send_upstream(stream=True)
-            assert it is not None
+        # 换号重试逻辑
+        max_account_retries = 3
+        used_accounts = [account["id"]]
+        current_acc = account
+
+        it = None
+        for acc_attempt in range(max_account_retries):
+            try:
+                # Calculate prompt tokens
+                prompt_text = "".join([m.content for m in req.messages if isinstance(m.content, str)])
+                prompt_tokens = count_tokens(prompt_text)
+
+                _, it, tracker = await _send_upstream(True, current_acc if acc_attempt > 0 else None)
+                assert it is not None
+                break
+            except Exception as e:
+                await _update_stats(current_acc["id"], False, e)
+
+                # 如果还有重试机会，换号重试
+                if acc_attempt < max_account_retries - 1:
+                    print(f"[账户 {current_acc['id'][:8]}] 失败，尝试换号重试")
+                    candidates = await _list_enabled_accounts()
+                    candidates = [c for c in candidates if c["id"] not in used_accounts]
+                    if candidates:
+                        current_acc = random.choice(candidates)
+                        used_accounts.append(current_acc["id"])
+                        print(f"[账户 {current_acc['id'][:8]}] 使用新账户重试")
+                        continue
+
+                print(f"聊天请求错误: {type(e).__name__}: {e}")
+                raise
+
+        try:
             
             async def event_gen() -> AsyncGenerator[str, None]:
                 completion_text = ""
@@ -993,13 +1043,13 @@ async def chat_completions(req: ChatCompletionRequest, account: Dict[str, Any] =
                     })
                     
                     yield "data: [DONE]\n\n"
-                    await _update_stats(account["id"], True)
+                    await _update_stats(current_acc["id"], True)
                 except GeneratorExit:
                     # Client disconnected - update stats but don't re-raise
-                    await _update_stats(account["id"], tracker.has_content if tracker else False)
+                    await _update_stats(current_acc["id"], tracker.has_content if tracker else False)
                 except Exception as e:
                     print(f"流式响应错误: {type(e).__name__}: {e}")
-                    await _update_stats(account["id"], tracker.has_content if tracker else False, e if not (tracker and tracker.has_content) else None)
+                    await _update_stats(current_acc["id"], tracker.has_content if tracker else False, e if not (tracker and tracker.has_content) else None)
                     raise
             
             return StreamingResponse(event_gen(), media_type="text/event-stream")
