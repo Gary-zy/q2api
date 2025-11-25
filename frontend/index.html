@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8"/>
-  <title>Amazonq2api 前端控制台 · 账号管理 + Chat 测试</title>
+  <title>账号池管理</title>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <style>
     :root {
@@ -112,13 +112,16 @@
       font-weight:500;
       box-shadow:0 2px 8px rgba(0,0,0,.2);
     }
-    .list { position:relative; max-height:600px; overflow:auto; padding:2px; }
+    .list { max-height:600px; overflow:auto; padding:2px; }
     .list::-webkit-scrollbar { width:8px; }
     .list::-webkit-scrollbar-track { background:rgba(0,0,0,.2); border-radius:4px; }
     .list::-webkit-scrollbar-thumb { background:rgba(79,143,255,.3); border-radius:4px; }
     .list::-webkit-scrollbar-thumb:hover { background:rgba(79,143,255,.5); }
-    .list-viewport { position:relative; }
-    .list-content { display:flex; flex-direction:column; gap:12px; }
+    .accounts-grid { display:grid; grid-template-columns:repeat(5, 1fr); gap:16px; }
+    @media(max-width:1600px){ .accounts-grid { grid-template-columns:repeat(4, 1fr); } }
+    @media(max-width:1280px){ .accounts-grid { grid-template-columns:repeat(3, 1fr); } }
+    @media(max-width:900px){ .accounts-grid { grid-template-columns:repeat(2, 1fr); } }
+    @media(max-width:600px){ .accounts-grid { grid-template-columns:1fr; } }
     .card {
       border:1px solid var(--border);
       border-radius:14px;
@@ -126,11 +129,29 @@
       background:linear-gradient(145deg,rgba(12,19,34,.6),rgba(10,14,26,.8));
       display:flex;
       flex-direction:column;
-      gap:12px;
+      gap:10px;
       box-shadow:0 4px 16px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.02);
       transition:all .2s;
+      cursor:pointer;
     }
-    .card:hover { border-color:rgba(79,143,255,.3); box-shadow:0 6px 20px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.03); }
+    .card:hover { border-color:rgba(79,143,255,.3); box-shadow:0 6px 20px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.03); transform:translateY(-2px); }
+    .card-header { display:flex; align-items:center; gap:8px; }
+    .card-title { font-weight:600; font-size:14px; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .card-status { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+    .card-status.enabled { background:var(--ok); box-shadow:0 0 8px var(--ok); }
+    .card-status.disabled { background:var(--muted); }
+    .card-stats { display:flex; flex-direction:column; gap:8px; font-size:12px; }
+    .card-stat { display:flex; flex-direction:column; gap:4px; }
+    .card-stat-header { display:flex; justify-content:space-between; align-items:center; }
+    .card-stat-label { color:var(--muted); font-size:11px; }
+    .card-stat-value { font-weight:600; font-size:13px; }
+    .card-stat-value.success { color:var(--ok); }
+    .card-stat-value.error { color:var(--danger); }
+    .progress-bar { height:6px; background:rgba(255,255,255,.05); border-radius:3px; overflow:hidden; }
+    .progress-fill { height:100%; transition:width .3s; border-radius:3px; }
+    .progress-fill.success { background:linear-gradient(90deg,var(--ok),#48ffa0); }
+    .progress-fill.error { background:linear-gradient(90deg,var(--danger),#ff6b7a); }
+    .card-id { font-family:monospace; font-size:11px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; }
     .mono { font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; }
     .code {
       background:var(--code);
@@ -190,7 +211,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>Q2api 前端控制台</h1>
+
 
     <div class="tabs">
       <button class="tab active" onclick="switchTab('accounts')">账号管理</button>
@@ -345,108 +366,176 @@ async function authFetch(url, options = {}) {
 let accountsData = [];
 let virtualScroll = null;
 
-// Create account card element
+// Create account card element (small card for grid)
 function createAccountCard(acc) {
   const card = document.createElement('div');
   card.className = 'card';
   card.dataset.accountId = acc.id;
+  card.onclick = () => showAccountDetail(acc);
+
+  const header = document.createElement('div');
+  header.className = 'card-header';
+
+  const status = document.createElement('div');
+  status.className = 'card-status ' + (acc.enabled ? 'enabled' : 'disabled');
+
+  const title = document.createElement('div');
+  title.className = 'card-title';
+  title.textContent = acc.label || '(无标签)';
+
+  header.appendChild(status);
+  header.appendChild(title);
+  card.appendChild(header);
+
+  const stats = document.createElement('div');
+  stats.className = 'card-stats';
+
+  const successCount = acc.success_count || 0;
+  const errorCount = acc.error_count || 0;
+  const total = successCount + errorCount || 1;
+  const successPercent = (successCount / total) * 100;
+  const errorPercent = (errorCount / total) * 100;
+
+  const successStat = document.createElement('div');
+  successStat.className = 'card-stat';
+  successStat.innerHTML = `
+    <div class="card-stat-header">
+      <span class="card-stat-label">成功</span>
+      <span class="card-stat-value success">${successCount}</span>
+    </div>
+    <div class="progress-bar">
+      <div class="progress-fill success" style="width:${successPercent}%"></div>
+    </div>
+  `;
+
+  const errorStat = document.createElement('div');
+  errorStat.className = 'card-stat';
+  errorStat.innerHTML = `
+    <div class="card-stat-header">
+      <span class="card-stat-label">错误</span>
+      <span class="card-stat-value error">${errorCount}</span>
+    </div>
+    <div class="progress-bar">
+      <div class="progress-fill error" style="width:${errorPercent}%"></div>
+    </div>
+  `;
+
+  stats.appendChild(successStat);
+  stats.appendChild(errorStat);
+  card.appendChild(stats);
+
+  const idDiv = document.createElement('div');
+  idDiv.className = 'card-id';
+  idDiv.textContent = acc.id;
+  card.appendChild(idDiv);
+
+  return card;
+}
+
+// Show account detail modal
+function showAccountDetail(acc) {
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.8);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px;';
+  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+  const content = document.createElement('div');
+  content.className = 'panel';
+  content.style.cssText = 'max-width:800px;width:100%;max-height:90vh;overflow:auto;';
 
   const header = document.createElement('div');
   header.className = 'row';
-  const name = document.createElement('div');
-  name.innerHTML = '<strong>' + (acc.label || '(无标签)') + '</strong>';
-  const id = document.createElement('div');
-  id.className = 'chip mono';
-  id.textContent = acc.id;
+  header.style.marginBottom = '16px';
+  header.style.gap = '8px';
 
-  const spacer = document.createElement('div');
-  spacer.className = 'right';
+  const labelInput = document.createElement('input');
+  labelInput.value = acc.label || '';
+  labelInput.placeholder = '标签';
+  labelInput.style.flex = '1';
 
-  // Enabled toggle
-  const toggleWrap = document.createElement('div');
-  const toggleLabel = document.createElement('label');
-  toggleLabel.style.marginRight = '6px';
-  toggleLabel.className = 'muted';
-  toggleLabel.textContent = '启用';
-  const toggle = document.createElement('label');
-  toggle.className = 'switch';
-  const chk = document.createElement('input');
-  chk.type = 'checkbox';
-  chk.checked = !!acc.enabled;
-  chk.onchange = async () => {
-    try {
-      await updateAccount(acc.id, { enabled: chk.checked });
-    } catch(e) {
-      chk.checked = !chk.checked;
-    }
+  const saveLabel = document.createElement('button');
+  saveLabel.className = 'btn-secondary';
+  saveLabel.textContent = '保存标签';
+  saveLabel.onclick = async () => {
+    await updateAccount(acc.id, { label: labelInput.value });
+    modal.remove();
   };
-  const slider = document.createElement('span');
-  slider.className = 'slider';
-  toggle.appendChild(chk); toggle.appendChild(slider);
-  toggleWrap.appendChild(toggleLabel); toggleWrap.appendChild(toggle);
+
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'btn-secondary';
+  closeBtn.textContent = '关闭';
+  closeBtn.onclick = () => modal.remove();
+
+  header.appendChild(labelInput);
+  header.appendChild(saveLabel);
+  header.appendChild(closeBtn);
+  content.appendChild(header);
+
+  const meta = document.createElement('div');
+  meta.className = 'kvs mono';
+  function row(k, v, color) {
+    const kEl = document.createElement('div'); kEl.className = 'muted'; kEl.textContent = k;
+    if (color) kEl.style.color = color;
+    const vEl = document.createElement('div'); vEl.textContent = v ?? '';
+    if (color) vEl.style.color = color;
+    meta.appendChild(kEl); meta.appendChild(vEl);
+  }
+  row('ID', acc.id);
+  row('启用', acc.enabled ? '是' : '否');
+  row('成功次数', acc.success_count ?? 0, 'var(--ok)');
+  row('错误次数', acc.error_count ?? 0, 'var(--danger)');
+  row('刷新状态', acc.last_refresh_status || '-');
+  row('刷新时间', acc.last_refresh_time || '-');
+  row('clientId', acc.clientId || '-');
+  row('refreshToken', acc.refreshToken ? '已设置' : '未设置');
+  row('accessToken', acc.accessToken ? '已设置' : '未设置');
+  row('创建时间', acc.created_at || '-');
+  row('更新时间', acc.updated_at || '-');
+  if (acc.other) {
+    row('其他信息', JSON.stringify(acc.other));
+  }
+  content.appendChild(meta);
+
+  const sep = document.createElement('div');
+  sep.className = 'sep';
+  content.appendChild(sep);
+
+  const actions = document.createElement('div');
+  actions.className = 'row';
+  actions.style.gap = '8px';
+
+  const toggleBtn = document.createElement('button');
+  toggleBtn.className = acc.enabled ? 'btn-secondary' : '';
+  toggleBtn.textContent = acc.enabled ? '禁用' : '启用';
+  toggleBtn.onclick = async () => {
+    await updateAccount(acc.id, { enabled: !acc.enabled });
+    modal.remove();
+  };
 
   const refreshBtn = document.createElement('button');
   refreshBtn.className = 'btn-warn';
   refreshBtn.textContent = '刷新Token';
-  refreshBtn.onclick = () => refreshAccount(acc.id);
+  refreshBtn.onclick = async () => {
+    await refreshAccount(acc.id);
+    modal.remove();
+  };
 
   const delBtn = document.createElement('button');
   delBtn.className = 'btn-danger';
   delBtn.textContent = '删除';
-  delBtn.onclick = () => deleteAccount(acc.id);
-
-  header.appendChild(name);
-  header.appendChild(id);
-  header.appendChild(spacer);
-  header.appendChild(toggleWrap);
-  header.appendChild(refreshBtn);
-  header.appendChild(delBtn);
-  card.appendChild(header);
-
-  const meta = document.createElement('div');
-  meta.className = 'kvs mono';
-  function row(k, v) {
-    const kEl = document.createElement('div'); kEl.className = 'muted'; kEl.textContent = k;
-    const vEl = document.createElement('div'); vEl.textContent = v ?? '';
-    meta.appendChild(kEl); meta.appendChild(vEl);
-  }
-  row('enabled', String(!!acc.enabled));
-  row('success_count', acc.success_count ?? 0);
-  row('error_count', acc.error_count ?? 0);
-  row('last_refresh_status', acc.last_refresh_status);
-  row('last_refresh_time', acc.last_refresh_time);
-  row('clientId', acc.clientId);
-  row('hasRefreshToken', acc.refreshToken ? 'yes' : 'no');
-  row('hasAccessToken', acc.accessToken ? 'yes' : 'no');
-  row('created_at', acc.created_at);
-  row('updated_at', acc.updated_at);
-  if (acc.other) {
-    row('other', JSON.stringify(acc.other));
-  }
-  card.appendChild(meta);
-
-  // quick edit form
-  const editRow = document.createElement('div');
-  editRow.className = 'row';
-  editRow.style.marginTop = '8px';
-  const labelField = document.createElement('input');
-  labelField.placeholder = 'label';
-  labelField.value = acc.label || '';
-  const accessField = document.createElement('input');
-  accessField.placeholder = 'accessToken（可选）';
-  accessField.value = acc.accessToken || '';
-  const saveBtn = document.createElement('button');
-  saveBtn.className = 'btn-secondary';
-  saveBtn.textContent = '保存';
-  saveBtn.onclick = async () => {
-    await updateAccount(acc.id, { label: labelField.value, accessToken: accessField.value });
+  delBtn.onclick = async () => {
+    if (confirm('确认删除该账号？')) {
+      await deleteAccount(acc.id);
+      modal.remove();
+    }
   };
-  editRow.appendChild(labelField);
-  editRow.appendChild(accessField);
-  editRow.appendChild(saveBtn);
-  card.appendChild(editRow);
 
-  return card;
+  actions.appendChild(toggleBtn);
+  actions.appendChild(refreshBtn);
+  actions.appendChild(delBtn);
+  content.appendChild(actions);
+
+  modal.appendChild(content);
+  document.body.appendChild(modal);
 }
 
 // Virtual scroll implementation with auto height adjustment
@@ -602,28 +691,24 @@ class VirtualScroll {
 function renderAccounts(list){
   accountsData = list;
   const root = document.getElementById('accounts');
-  
+  root.innerHTML = '';
+
   if (!Array.isArray(list) || list.length === 0) {
-    if (virtualScroll) {
-      virtualScroll.destroy();
-      virtualScroll = null;
-    }
-    root.innerHTML = '';
     const empty = document.createElement('div');
     empty.className = 'muted';
     empty.textContent = '暂无账号';
     root.appendChild(empty);
     return;
   }
-  
-  // Estimate item height (card height ~280px with gap)
-  const estimatedItemHeight = 292;
-  
-  if (virtualScroll) {
-    virtualScroll.update(list);
-  } else {
-    virtualScroll = new VirtualScroll(root, list, estimatedItemHeight);
-  }
+
+  const grid = document.createElement('div');
+  grid.className = 'accounts-grid';
+
+  list.forEach(acc => {
+    grid.appendChild(createAccountCard(acc));
+  });
+
+  root.appendChild(grid);
 }
 
 async function loadAccounts(){
