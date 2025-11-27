@@ -256,8 +256,7 @@ def _parse_allowed_keys_env() -> List[str]:
     return keys
 
 ALLOWED_API_KEYS: List[str] = _parse_allowed_keys_env()
-MAX_ERROR_COUNT: int = int(os.getenv("MAX_ERROR_COUNT", "100"))
-MAX_CLIENT_ERROR_COUNT: int = int(os.getenv("MAX_CLIENT_ERROR_COUNT", "1"))
+MAX_ERROR_COUNT: int = int(os.getenv("MAX_ERROR_COUNT", "10"))
 TOKEN_COUNT_MULTIPLIER: float = float(os.getenv("TOKEN_COUNT_MULTIPLIER", "1.0"))
 MAX_RETRIES: int = int(os.getenv("MAX_RETRIES", "2"))
 RETRY_DELAY: float = float(os.getenv("RETRY_DELAY", "1.0"))
@@ -492,38 +491,21 @@ async def _update_stats(account_id: str, success: bool, error: Optional[Exceptio
     else:
         error_type = "Unknown"
         error_str = ""
-        is_client_error = False
         is_network_error = False
 
         if error:
             error_str = str(error)
             error_type = type(error).__name__
 
-            # Client errors (4xx) - should ban quickly
-            if "400" in error_str or "401" in error_str or "403" in error_str or "429" in error_str or "AccessDenied" in error_str:
-                is_client_error = True
             # Network/timeout errors - should NOT count towards ban
-            elif "Timeout" in error_type or "ConnectError" in error_type or "NetworkError" in error_type:
+            if "Timeout" in error_type or "ConnectError" in error_type or "NetworkError" in error_type:
                 is_network_error = True
 
-        if is_client_error:
-            # Client errors: ban after MAX_CLIENT_ERROR_COUNT (default 1)
-            row = await _db.fetchone("SELECT error_count FROM accounts WHERE id=?", (account_id,))
-            if row:
-                new_count = (row['error_count'] or 0) + 1
-                if new_count >= MAX_CLIENT_ERROR_COUNT:
-                    print(f"[账户 {account_id[:8]}] 已封禁 (客户端错误{new_count}次, 类型: {error_type})")
-                    await _db.execute("UPDATE accounts SET error_count=?, enabled=0, updated_at=? WHERE id=?",
-                               (new_count, time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()), account_id))
-                else:
-                    print(f"[账户 {account_id[:8]}] 客户端错误计数 {new_count}/{MAX_CLIENT_ERROR_COUNT} (类型: {error_type})")
-                    await _db.execute("UPDATE accounts SET error_count=?, updated_at=? WHERE id=?",
-                               (new_count, time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()), account_id))
-        elif is_network_error:
+        if is_network_error:
             # Network errors: don't count towards ban
             print(f"[账户 {account_id[:8]}] 网络错误，不计入封禁 ({error_type})")
         else:
-            # Other errors: use MAX_ERROR_COUNT
+            # All other errors (including 4xx client errors): use MAX_ERROR_COUNT
             row = await _db.fetchone("SELECT error_count FROM accounts WHERE id=?", (account_id,))
             if row:
                 new_count = (row['error_count'] or 0) + 1
