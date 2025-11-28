@@ -305,14 +305,17 @@ async def send_chat_request(
 
     payload_str = json.dumps(body_json, ensure_ascii=False)
     headers = _merge_headers(headers_from_log, access_token)
-    
+
     local_client = False
+
     # 使用重试机制发送 HTTP 请求
     async def _request():
         return await _make_http_request(url, headers, payload_str, timeout, client)
 
     try:
-        resp, client, local_client = await retry_with_backoff(_request, max_retries=3, base_delay=2.0, max_delay=30.0)
+        resp, client, local_client = await retry_with_backoff(
+            _request, max_retries=3, base_delay=2.0, max_delay=30.0
+        )
     except httpx.HTTPError as e:
         # 重试失败后直接抛出异常
         raise e
@@ -322,7 +325,7 @@ async def send_chat_request(
 
     # Track if the response has been consumed to avoid double-close
     response_consumed = False
-    
+
     async def _iter_events() -> AsyncGenerator[Any, None]:
         nonlocal response_consumed
         try:
@@ -332,12 +335,12 @@ async def send_chat_request(
                     async for chunk in resp.aiter_bytes():
                         if chunk:
                             yield chunk
-                
+
                 async for message in EventStreamParser.parse_stream(byte_gen()):
                     event_info = extract_event_info(message)
                     if event_info:
-                        event_type = event_info.get('event_type')
-                        payload = event_info.get('payload')
+                        event_type = event_info.get("event_type")
+                        payload = event_info.get("payload")
                         if event_type and payload:
                             yield (event_type, payload)
             else:
@@ -435,23 +438,23 @@ async def send_chat_request(
                 event_gen = _iter_events()
                 weakref.finalize(event_gen, _schedule_cleanup)
                 return None, None, tracker, event_gen
-            
+
             # Return text stream with finalizer as safety net
             text_gen = tracker.track(_iter_text())
             weakref.finalize(text_gen, _schedule_cleanup)
             return None, text_gen, tracker, None
-        else:
-            buf = []
-            try:
-                async for t in tracker.track(_iter_text()):
-                    buf.append(t)
-            finally:
-                # Ensure response is closed even if iteration is incomplete
-                if not response_consumed and resp:
-                    await resp.aclose()
-                    if local_client:
-                        await client.aclose()
-            return "".join(buf), None, tracker, None
+
+        buf = []
+        try:
+            async for t in tracker.track(_iter_text()):
+                buf.append(t)
+        finally:
+            # Ensure response is closed even if iteration is incomplete
+            if not response_consumed and resp:
+                await resp.aclose()
+                if local_client:
+                    await client.aclose()
+        return "".join(buf), None, tracker, None
 
     except Exception:
         # Critical: close response on any exception before generators are created
