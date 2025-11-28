@@ -1398,6 +1398,25 @@ if CONSOLE_ENABLED:
     async def manual_refresh(account_id: str, _: bool = Depends(verify_admin_password)):
         return await refresh_access_token_in_db(account_id)
 
+    @app.get("/v2/accounts/export/json")
+    async def export_accounts(_: bool = Depends(verify_admin_password)):
+        rows = await _db.fetchall("SELECT * FROM accounts ORDER BY created_at DESC")
+        accounts = [_row_to_dict(r) for r in rows]
+        return JSONResponse(content={"accounts": accounts}, headers={"Content-Disposition": "attachment; filename=accounts.json"})
+
+    @app.post("/v2/accounts/import/json")
+    async def import_accounts(body: BatchAccountCreate, _: bool = Depends(verify_admin_password)):
+        now = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime())
+        imported = []
+        for acc in body.accounts:
+            account_id = str(uuid.uuid4())
+            await _db.execute(
+                "INSERT INTO accounts (id, label, clientId, clientSecret, refreshToken, accessToken, other, created_at, updated_at, enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (account_id, acc.label, acc.clientId, acc.clientSecret, acc.refreshToken or "", acc.accessToken or "", json.dumps(acc.other or {}, ensure_ascii=False), now, now, 1 if acc.enabled else 0)
+            )
+            imported.append(account_id)
+        return {"imported": len(imported), "account_ids": imported}
+
     # ------------------------------------------------------------------------------
     # Simple Frontend (minimal dev test page; full UI in v2/frontend/index.html)
     # ------------------------------------------------------------------------------
