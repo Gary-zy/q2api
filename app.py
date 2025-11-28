@@ -482,19 +482,36 @@ async def get_account(account_id: str) -> Dict[str, Any]:
     return _row_to_dict(row)
 
 async def _update_stats(account_id: str, success: bool) -> None:
-    if success:
-        await _db.execute("UPDATE accounts SET success_count=success_count+1, error_count=0, updated_at=? WHERE id=?",
-                    (time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()), account_id))
-    else:
-        row = await _db.fetchone("SELECT error_count FROM accounts WHERE id=?", (account_id,))
-        if row:
-            new_count = (row['error_count'] or 0) + 1
-            if new_count >= MAX_ERROR_COUNT:
-                await _db.execute("UPDATE accounts SET error_count=?, enabled=0, updated_at=? WHERE id=?",
-                           (new_count, time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()), account_id))
+    """
+    更新账户统计信息，带有重试机制以解决数据库锁定问题
+    """
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            if success:
+                await _db.execute("UPDATE accounts SET success_count=success_count+1, error_count=0, updated_at=? WHERE id=?",
+                            (time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()), account_id))
             else:
-                await _db.execute("UPDATE accounts SET error_count=?, updated_at=? WHERE id=?",
-                           (new_count, time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()), account_id))
+                row = await _db.fetchone("SELECT error_count FROM accounts WHERE id=?", (account_id,))
+                if row:
+                    new_count = (row['error_count'] or 0) + 1
+                    if new_count >= MAX_ERROR_COUNT:
+                        await _db.execute("UPDATE accounts SET error_count=?, enabled=0, updated_at=? WHERE id=?",
+                                   (new_count, time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()), account_id))
+                    else:
+                        await _db.execute("UPDATE accounts SET error_count=?, updated_at=? WHERE id=?",
+                                   (new_count, time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()), account_id))
+            break  # 成功执行，退出重试循环
+
+        except Exception as e:
+            if attempt < max_retries - 1 and "database is locked" in str(e).lower():
+                # 数据库锁定时短暂等待后重试
+                await asyncio.sleep(0.1 * (attempt + 1))
+                continue
+            else:
+                # 非数据库锁定错误或已达到最大重试次数，抛出异常
+                print(f"更新统计信息失败: {e}")
+                raise
 
 # ------------------------------------------------------------------------------
 # Dependencies
@@ -607,7 +624,21 @@ async def claude_messages(req: ClaudeRequest, account: Dict[str, Any] = Depends(
             # For simplicity, let's force stream=True internally and aggregate if req.stream is False.
             pass
     except Exception as e:
-        await _update_stats(account["id"], False)
+        # 记录详细错误信息
+        error_msg = str(e)
+        if "429" in error_msg:
+            print(f"账户 {account['id'][:8]} 遇到速率限制错误: {error_msg}")
+        elif "database is locked" in error_msg.lower():
+            print(f"账户 {account['id'][:8]} 数据库锁定错误: {error_msg}")
+        else:
+            print(f"账户 {account['id'][:8]} 请求失败: {error_msg}")
+
+        # 尝试更新统计信息
+        try:
+            await _update_stats(account["id"], False)
+        except Exception as stats_error:
+            print(f"更新统计信息失败: {stats_error}")
+
         raise
 
     # We always use streaming upstream to handle events properly

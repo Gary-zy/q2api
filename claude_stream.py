@@ -77,6 +77,38 @@ class ClaudeStreamHandler:
         self._processed_tool_use_ids: Set[str] = set()
         self.all_tool_inputs: List[str] = []
 
+    def _start_text_block(self) -> str:
+        """Start a new text content block."""
+        self.content_block_index += 1
+        self.content_block_started = True
+        self.content_block_start_sent = True
+        self.content_block_stop_sent = False
+        return build_content_block_start(self.content_block_index, "text")
+
+    def _start_tool_block(self, tool_use_id: str, tool_name: str) -> str:
+        """Start a new tool use content block."""
+        self.content_block_index += 1
+        self.content_block_started = True
+        self.content_block_start_sent = True
+        self.content_block_stop_sent = False
+        return build_tool_use_start(self.content_block_index, tool_use_id, tool_name)
+
+    def _stop_current_block(self) -> Optional[str]:
+        """Stop the current content block if it is open."""
+        if self.content_block_started and not self.content_block_stop_sent:
+            self.content_block_stop_sent = True
+            self.content_block_started = False
+            self.content_block_start_sent = False
+            return build_content_block_stop(self.content_block_index)
+        return None
+
+    def _reset_tool_state(self) -> None:
+        """Clear tool tracking state."""
+        self.current_tool_use = None
+        self.tool_use_id = None
+        self.tool_name = None
+        self.tool_input_buffer = []
+
     async def handle_event(self, event_type: str, payload: Dict[str, Any]) -> AsyncGenerator[str, None]:
         """Process a single Amazon Q event and yield Claude SSE events."""
         
@@ -94,17 +126,15 @@ class ClaudeStreamHandler:
             content = payload.get("content", "")
             
             # Close any open tool use block
-            if self.current_tool_use and not self.content_block_stop_sent:
-                yield build_content_block_stop(self.content_block_index)
-                self.content_block_stop_sent = True
-                self.current_tool_use = None
+            if self.current_tool_use:
+                stop_event = self._stop_current_block()
+                if stop_event:
+                    yield stop_event
+                self._reset_tool_state()
 
             # Start content block if needed
-            if not self.content_block_start_sent:
-                self.content_block_index += 1
-                yield build_content_block_start(self.content_block_index, "text")
-                self.content_block_start_sent = True
-                self.content_block_started = True
+            if content and not self.content_block_started:
+                yield self._start_text_block()
 
             # Send delta
             if content:
@@ -119,24 +149,20 @@ class ClaudeStreamHandler:
             is_stop = payload.get("stop", False)
 
             # Start new tool use
-            if tool_use_id and tool_name and not self.current_tool_use:
-                # Close previous text block if open
-                if self.content_block_start_sent and not self.content_block_stop_sent:
-                    yield build_content_block_stop(self.content_block_index)
-                    self.content_block_stop_sent = True
+            if tool_use_id and tool_name and (not self.current_tool_use or self.tool_use_id != tool_use_id):
+                # Close previous block if open (text or another tool)
+                stop_event = self._stop_current_block()
+                if stop_event:
+                    yield stop_event
 
                 self._processed_tool_use_ids.add(tool_use_id)
-                self.content_block_index += 1
                 
-                yield build_tool_use_start(self.content_block_index, tool_use_id, tool_name)
+                yield self._start_tool_block(tool_use_id, tool_name)
                 
-                self.content_block_started = True
                 self.current_tool_use = {"toolUseId": tool_use_id, "name": tool_name}
                 self.tool_use_id = tool_use_id
                 self.tool_name = tool_name
                 self.tool_input_buffer = []
-                self.content_block_stop_sent = False
-                self.content_block_start_sent = True
 
             # Accumulate input
             if self.current_tool_use and tool_input:
@@ -150,31 +176,30 @@ class ClaudeStreamHandler:
                 yield build_tool_use_input_delta(self.content_block_index, fragment)
 
             # Stop tool use
-            if is_stop and self.current_tool_use:
+            if is_stop and self.current_tool_use and self.tool_use_id == tool_use_id:
                 full_input = "".join(self.tool_input_buffer)
                 self.all_tool_inputs.append(full_input)
                 
-                yield build_content_block_stop(self.content_block_index)
-                self.content_block_stop_sent = True
-                self.content_block_started = False
-                self.current_tool_use = None
-                self.tool_use_id = None
-                self.tool_name = None
-                self.tool_input_buffer = []
+                stop_event = self._stop_current_block()
+                if stop_event:
+                    yield stop_event
+
+                self._reset_tool_state()
 
         # 4. Assistant Response End (assistantResponseEnd)
         elif event_type == "assistantResponseEnd":
             # Close any open block
-            if self.content_block_started and not self.content_block_stop_sent:
-                yield build_content_block_stop(self.content_block_index)
-                self.content_block_stop_sent = True
+            stop_event = self._stop_current_block()
+            if stop_event:
+                yield stop_event
+            self._reset_tool_state()
 
     async def finish(self) -> AsyncGenerator[str, None]:
         """Send final events."""
         # Ensure last block is closed
-        if self.content_block_started and not self.content_block_stop_sent:
-            yield build_content_block_stop(self.content_block_index)
-            self.content_block_stop_sent = True
+        stop_event = self._stop_current_block()
+        if stop_event:
+            yield stop_event
 
         # Calculate output tokens (approximate)
         full_text = "".join(self.response_buffer)

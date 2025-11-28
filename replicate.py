@@ -3,6 +3,8 @@ import uuid
 import os
 import asyncio
 import weakref
+import random
+import time
 from pathlib import Path
 from typing import Dict, Optional, Tuple, Iterator, List, AsyncGenerator, Any
 import struct
@@ -212,6 +214,67 @@ def inject_model(body_json: Dict[str, Any], model: Optional[str]) -> None:
     except Exception:
         pass
 
+async def retry_with_backoff(func, max_retries=3, base_delay=1.0, max_delay=60.0):
+    """
+    带有指数退避的重试机制，特别适用于处理 429 错误
+    """
+    for attempt in range(max_retries):
+        try:
+            return await func()
+        except httpx.HTTPError as e:
+            if "429" in str(e) and attempt < max_retries - 1:
+                # 指数退避: base_delay * 2^attempt + 随机抖动
+                delay = min(base_delay * (2 ** attempt) + random.uniform(0, 1), max_delay)
+                print(f"HTTP 429 错误，第 {attempt + 1} 次重试，等待 {delay:.2f} 秒...")
+                await asyncio.sleep(delay)
+                continue
+            raise
+        except Exception as e:
+            # 对于其他错误，不重试
+            raise
+
+async def _make_http_request(url, headers, payload_str, timeout, client=None):
+    """执行实际的 HTTP 请求"""
+    local_client = False
+    if not client:
+        proxies = _get_proxies()
+        mounts = None
+        if proxies:
+            proxy_url = proxies.get("https") or proxies.get("http")
+            if proxy_url:
+                mounts = {
+                    "https://": httpx.AsyncHTTPTransport(proxy=proxy_url),
+                    "http://": httpx.AsyncHTTPTransport(proxy=proxy_url),
+                }
+        client = httpx.AsyncClient(mounts=mounts, timeout=httpx.Timeout(timeout[0], read=timeout[1]))
+        local_client = True
+
+    req = client.build_request("POST", url, headers=headers, content=payload_str)
+    resp = None
+
+    try:
+        resp = await client.send(req, stream=True)
+
+        if resp.status_code >= 400:
+            try:
+                await resp.read()
+                err = resp.text
+            except Exception:
+                err = f"HTTP {resp.status_code}"
+            await resp.aclose()
+            if local_client:
+                await client.aclose()
+            raise httpx.HTTPError(f"Upstream error {resp.status_code}: {err}")
+
+        return resp, client, local_client
+
+    except Exception:
+        if resp and not resp.is_closed:
+            await resp.aclose()
+        if local_client and client:
+            await client.aclose()
+        raise
+
 async def send_chat_request(
     access_token: str,
     messages: List[Dict[str, Any]],
@@ -244,42 +307,21 @@ async def send_chat_request(
     headers = _merge_headers(headers_from_log, access_token)
     
     local_client = False
-    if client is None:
-        local_client = True
-        proxies = _get_proxies()
-        mounts = None
-        if proxies:
-            proxy_url = proxies.get("https") or proxies.get("http")
-            if proxy_url:
-                mounts = {
-                    "https://": httpx.AsyncHTTPTransport(proxy=proxy_url),
-                    "http://": httpx.AsyncHTTPTransport(proxy=proxy_url),
-                }
-        client = httpx.AsyncClient(mounts=mounts, timeout=httpx.Timeout(timeout[0], read=timeout[1]))
-    
-    # Use manual request sending to control stream lifetime
-    req = client.build_request("POST", url, headers=headers, content=payload_str)
-    
-    resp = None
+  # 使用重试机制发送 HTTP 请求
+    async def _request():
+        return await _make_http_request(url, headers, payload_str, timeout, client)
+
     try:
-        resp = await client.send(req, stream=True)
-        
-        if resp.status_code >= 400:
-            try:
-                await resp.read()
-                err = resp.text
-            except Exception:
-                err = f"HTTP {resp.status_code}"
-            await resp.aclose()
-            if local_client:
-                await client.aclose()
-            raise httpx.HTTPError(f"Upstream error {resp.status_code}: {err}")
-        
-        parser = AwsEventStreamParser()
-        tracker = StreamTracker()
-        
-        # Track if the response has been consumed to avoid double-close
-        response_consumed = False
+        resp, client, local_client = await retry_with_backoff(_request, max_retries=3, base_delay=2.0, max_delay=30.0)
+    except httpx.HTTPError as e:
+        # 重试失败后直接抛出异常
+        raise e
+
+    parser = AwsEventStreamParser()
+    tracker = StreamTracker()
+
+    # Track if the response has been consumed to avoid double-close
+    response_consumed = False
         
         async def _iter_events() -> AsyncGenerator[Any, None]:
             nonlocal response_consumed
