@@ -2,169 +2,115 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8"/>
-  <title>Q2API · Console by 张扬2025年11月28日17:09:54</title>
+  <title>账号池管理</title>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <style>
     :root {
-      /* 调色盘：深夜霓虹 */
-      --bg-body: #030711;
-      --bg-panel: rgba(18, 24, 38, 0.9);
-      --bg-subtle: #101727;
-      
-      --border: rgba(255, 255, 255, 0.08);
-      --border-subtle: rgba(255, 255, 255, 0.05);
-      
-      --text-main: #f8fafc;
-      --text-muted: #9ba3b4;
-      --text-dim: #5f6880;
-
-      --accent: #22d3ee; /* 青蓝 */
-      --accent-2: #7cfb6b; /* 荧光绿 */
-      --accent-hover: #0ea5e9;
-      --accent-glow: rgba(34, 211, 238, 0.24);
-
-      --success: #22c55e;
-      --danger: #ef4444;
-      --warning: #f59e0b;
-      
-      --radius-sm: 6px;
-      --radius-md: 10px;
-      --radius-lg: 14px;
+      --bg:#0a0e1a;
+      --panel:#0f1420;
+      --muted:#8b95a8;
+      --text:#e8f0ff;
+      --accent:#4f8fff;
+      --danger:#ff4757;
+      --ok:#2ed573;
+      --warn:#ffa502;
+      --border:#1a2332;
+      --chip:#141b28;
+      --code:#0d1218;
+      --glow:rgba(79,143,255,.15);
     }
-
-    /* 基础重置 */
-    * { box-sizing: border-box; outline: none; }
-    html, body { height: 100%; margin: 0; }
-    
+    * { box-sizing:border-box; }
+    html, body { height:100%; margin:0; }
     body {
-      background: radial-gradient(circle at 10% 20%, rgba(34, 211, 238, 0.12), transparent 26%),
-                  radial-gradient(circle at 80% 0%, rgba(124, 251, 107, 0.14), transparent 30%),
-                  radial-gradient(circle at 50% 80%, rgba(14, 165, 233, 0.18), transparent 28%),
-                  var(--bg-body);
-      color: var(--text-main);
-      font-family: "Sora", "Space Grotesk", "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
-      line-height: 1.55;
-      font-size: 14px;
-      padding-bottom: 48px;
-      letter-spacing: 0.01em;
+      padding:0 0 40px;
+      background:radial-gradient(ellipse at top, #0f1624 0%, #0a0e1a 100%);
+      color:var(--text);
+      font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,PingFang SC,Hiragino Sans GB,Microsoft YaHei,Noto Sans,Arial,sans-serif;
+      line-height:1.6;
     }
-
-    /* 布局容器 */
-    .container {
-      max-width: 1360px;
-      margin: 0 auto;
-      padding: 28px 24px 0;
-    }
-
-    /* 头部区域 */
-    header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 32px;
-      padding-bottom: 20px;
-      border-bottom: 1px solid var(--border-subtle);
-    }
-
-    h1 {
-      font-size: 26px;
-      font-weight: 800;
-      letter-spacing: -0.6px;
-      margin: 0;
-      background: linear-gradient(120deg, #e2f3ff, #9ae6ff 45%, #7cfb6b 90%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      text-transform: uppercase;
-    }
-
-    /* 导航 Tabs - 胶囊风格 */
-    .nav-tabs {
-      display: inline-flex;
-      background: rgba(255, 255, 255, 0.05);
-      padding: 5px;
-      border-radius: 999px;
-      gap: 4px;
-      border: 1px solid var(--border-subtle);
-      box-shadow: 0 10px 40px rgba(0,0,0,0.25);
-    }
-
-    .tab-btn {
-      background: transparent;
-      border: none;
-      color: var(--text-muted);
-      padding: 10px 18px;
-      font-size: 13px;
-      font-weight: 600;
-      letter-spacing: 0.03em;
-      border-radius: 999px;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .tab-btn:hover { color: var(--text-main); transform: translateY(-1px); }
-    .tab-btn.active {
-      background: linear-gradient(135deg, rgba(34, 211, 238, 0.2), rgba(124, 251, 107, 0.2));
-      color: var(--text-main);
-      box-shadow: 0 12px 35px rgba(34, 211, 238, 0.25);
-      border: 1px solid rgba(124, 251, 107, 0.2);
-    }
-
-    /* 内容面板 */
-    .tab-pane { display: none; animation: fadeIn 0.3s ease; }
-    .tab-pane.active { display: block; }
-    
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(5px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
+    h1,h2,h3 { font-weight:700; letter-spacing:-.02em; margin:0; }
+    h1 { font-size:28px; margin:24px 0 12px; background:linear-gradient(135deg,#4f8fff,#7b9fff); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+    h2 { font-size:18px; margin:20px 0 16px; color:#c5d4ff; }
+    h3 { font-size:15px; margin:16px 0 10px; color:#a8b8d8; }
+    .container { max-width:1280px; margin:0 auto; padding:20px; }
+    .grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+    @media(max-width:1024px){ .grid { grid-template-columns:1fr; } }
     .panel {
-      position: relative;
-      background: var(--bg-panel);
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-lg);
-      padding: 24px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
-      overflow: hidden;
-      backdrop-filter: blur(8px);
+      background:linear-gradient(145deg,rgba(15,20,32,.8),rgba(10,14,26,.9));
+      border:1px solid var(--border);
+      border-radius:16px;
+      padding:24px;
+      box-shadow:0 20px 60px rgba(0,0,0,.4),0 0 0 1px rgba(79,143,255,.08),inset 0 1px 0 rgba(255,255,255,.03);
+      backdrop-filter:blur(12px);
+      transition:transform .2s,box-shadow .2s;
     }
-    .panel::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background: radial-gradient(circle at 20% 20%, rgba(34, 211, 238, 0.07), transparent 38%),
-                  radial-gradient(circle at 90% 10%, rgba(124, 251, 107, 0.07), transparent 32%);
-      opacity: 0.9;
-      pointer-events: none;
+    .panel:hover { transform:translateY(-2px); box-shadow:0 24px 70px rgba(0,0,0,.5),0 0 0 1px rgba(79,143,255,.12),inset 0 1px 0 rgba(255,255,255,.04); }
+    .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    label { color:var(--muted); font-size:13px; font-weight:500; letter-spacing:.01em; }
+    .field { display:flex; flex-direction:column; gap:8px; flex:1; min-width:200px; }
+    input,textarea,select {
+      background:rgba(12,16,28,.6);
+      color:var(--text);
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:12px 14px;
+      outline:none;
+      transition:all .2s;
+      font-size:14px;
+      box-shadow:inset 0 1px 2px rgba(0,0,0,.2);
     }
-    .panel > * { position: relative; z-index: 1; }
-
-    /* ---------------- 表格样式 (核心修改) ---------------- */
-    .table-container {
-      overflow-x: auto;
-      border-radius: var(--radius-md);
-      border: 1px solid var(--border-subtle);
-      background: rgba(255,255,255,0.01);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+    input:focus,textarea:focus,select:focus {
+      border-color:var(--accent);
+      box-shadow:0 0 0 3px var(--glow),inset 0 1px 2px rgba(0,0,0,.2);
+      background:rgba(12,16,28,.8);
     }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 13px;
-      text-align: left;
+    textarea { min-height:140px; resize:vertical; font-family:ui-monospace,monospace; }
+    button {
+      background:linear-gradient(135deg,#2563eb,#1e40af);
+      color:#fff;
+      border:none;
+      border-radius:12px;
+      padding:12px 20px;
+      font-weight:600;
+      font-size:14px;
+      cursor:pointer;
+      transition:all .2s;
+      box-shadow:0 4px 16px rgba(37,99,235,.3),inset 0 1px 0 rgba(255,255,255,.1);
+      position:relative;
+      overflow:hidden;
     }
-
-    thead {
-      background: linear-gradient(90deg, rgba(34, 211, 238, 0.12), rgba(124, 251, 107, 0.08));
+    button:before {
+      content:'';
+      position:absolute;
+      top:0;left:0;right:0;bottom:0;
+      background:linear-gradient(135deg,rgba(255,255,255,.1),transparent);
+      opacity:0;
+      transition:opacity .2s;
     }
-
-    th {
-      padding: 12px 16px;
-      color: var(--text-muted);
-      font-weight: 600;
-      white-space: nowrap;
-      border-bottom: 1px solid var(--border);
+    button:hover { transform:translateY(-1px); box-shadow:0 6px 20px rgba(37,99,235,.4),inset 0 1px 0 rgba(255,255,255,.15); }
+    button:hover:before { opacity:1; }
+    button:active { transform:translateY(0); }
+    button:disabled { opacity:.5; cursor:not-allowed; transform:none; }
+    .btn-secondary { background:linear-gradient(135deg,#1e293b,#0f172a); box-shadow:0 4px 16px rgba(15,23,42,.3),inset 0 1px 0 rgba(255,255,255,.05); }
+    .btn-secondary:hover { box-shadow:0 6px 20px rgba(15,23,42,.4),inset 0 1px 0 rgba(255,255,255,.08); }
+    .btn-danger { background:linear-gradient(135deg,#dc2626,#991b1b); box-shadow:0 4px 16px rgba(220,38,38,.3),inset 0 1px 0 rgba(255,255,255,.1); }
+    .btn-danger:hover { box-shadow:0 6px 20px rgba(220,38,38,.4),inset 0 1px 0 rgba(255,255,255,.15); }
+    .btn-warn { background:linear-gradient(135deg,#f59e0b,#d97706); box-shadow:0 4px 16px rgba(245,158,11,.3),inset 0 1px 0 rgba(255,255,255,.1); }
+    .btn-warn:hover { box-shadow:0 6px 20px rgba(245,158,11,.4),inset 0 1px 0 rgba(255,255,255,.15); }
+    .kvs { display:grid; grid-template-columns:160px 1fr; gap:10px 16px; font-size:13px; }
+    .muted { color:var(--muted); }
+    .chip {
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:6px 12px;
+      background:rgba(20,27,40,.8);
+      border:1px solid var(--border);
+      border-radius:20px;
+      color:#a8b8ff;
+      font-size:12px;
+      font-weight:500;
+      box-shadow:0 2px 8px rgba(0,0,0,.2);
     }
     .list { max-height:600px; overflow:auto; padding:2px; }
     .list::-webkit-scrollbar { width:8px; }
@@ -220,149 +166,59 @@
       line-height:1.6;
       box-shadow:inset 0 2px 4px rgba(0,0,0,.3);
     }
-    .badge-success { background: rgba(16, 185, 129, 0.15); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.2); }
-    .badge-danger { background: rgba(239, 68, 68, 0.15); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.2); }
-    .badge-neutral { background: rgba(161, 161, 170, 0.15); color: var(--text-muted); border: 1px solid rgba(161, 161, 170, 0.2); }
-
-    .token-dot {
-      display: inline-block;
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: var(--border);
-      margin-right: 4px;
-    }
-    .token-dot.active { background: var(--success); box-shadow: 0 0 8px rgba(16, 185, 129, 0.4); }
-
-    /* 按钮样式 */
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 9px 16px;
-      border-radius: var(--radius-md);
-      font-weight: 700;
-      font-size: 13px;
-      cursor: pointer;
-      border: 1px solid transparent;
-      transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease;
-      gap: 6px;
-      letter-spacing: 0.02em;
-    }
-
-    .btn-primary {
-      background: linear-gradient(120deg, var(--accent), var(--accent-2));
-      color: #041018;
-      box-shadow: 0 10px 30px rgba(34, 211, 238, 0.35);
-    }
-    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 14px 36px rgba(34, 211, 238, 0.42); }
-    
-    .btn-ghost { background: rgba(255,255,255,0.04); color: var(--text-main); border: 1px solid var(--border); }
-    .btn-ghost:hover { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.12); }
-
-    .btn-icon { padding: 7px; border-radius: var(--radius-sm); color: var(--text-muted); background: rgba(255,255,255,0.03); border: 1px solid var(--border); }
-    .btn-icon:hover { background: rgba(255,255,255,0.08); color: var(--text-main); transform: translateY(-1px); }
-    .btn-icon.danger:hover { background: rgba(239, 68, 68, 0.12); color: var(--danger); }
-
-    /* 开关 (Switch) */
-    .switch {
-      position: relative;
-      display: inline-block;
-      width: 36px;
-      height: 20px;
-    }
-    .switch input { opacity: 0; width: 0; height: 0; }
+    .code::-webkit-scrollbar { width:8px; height:8px; }
+    .code::-webkit-scrollbar-track { background:rgba(0,0,0,.2); border-radius:4px; }
+    .code::-webkit-scrollbar-thumb { background:rgba(79,143,255,.3); border-radius:4px; }
+    .right { margin-left:auto; }
+    .sep { height:1px; background:linear-gradient(90deg,transparent,rgba(79,143,255,.2),transparent); margin:16px 0; }
+    .status-ok { color:var(--ok); font-weight:600; }
+    .status-fail { color:var(--danger); font-weight:600; }
+    .switch { position:relative; display:inline-block; width:50px; height:26px; }
+    .switch input { opacity:0; width:0; height:0; }
     .slider {
-      position: absolute;
-      cursor: pointer;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background-color: var(--border);
-      transition: .3s;
-      border-radius: 20px;
+      position:absolute;
+      cursor:pointer;
+      top:0;left:0;right:0;bottom:0;
+      background:linear-gradient(135deg,#374151,#1f2937);
+      transition:.3s;
+      border-radius:26px;
+      border:1px solid var(--border);
+      box-shadow:inset 0 2px 4px rgba(0,0,0,.3);
     }
     .slider:before {
-      position: absolute;
-      content: "";
-      height: 16px; width: 16px;
-      left: 2px; bottom: 2px;
-      background-color: white;
-      transition: .3s;
-      border-radius: 50%;
+      position:absolute;
+      content:"";
+      height:20px;
+      width:20px;
+      left:3px;
+      bottom:2px;
+      background:linear-gradient(135deg,#f3f4f6,#e5e7eb);
+      transition:.3s;
+      border-radius:50%;
+      box-shadow:0 2px 6px rgba(0,0,0,.3);
     }
-    input:checked + .slider { background-color: var(--success); }
-    input:checked + .slider:before { transform: translateX(16px); }
-
-    /* 表单元素 */
-    .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
-    .form-group { display: flex; flex-direction: column; gap: 8px; }
-    label { color: var(--text-muted); font-size: 12px; font-weight: 600; }
-    input, textarea, select {
-      background: var(--bg-body);
-      border: 1px solid var(--border);
-      color: var(--text-main);
-      padding: 10px 12px;
-      border-radius: var(--radius-md);
-      font-size: 14px;
-      transition: border 0.2s;
-    }
-    input:focus, textarea:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-glow); }
-    textarea { min-height: 100px; font-family: 'SFMono-Regular', monospace; font-size: 12px; }
-
-    /* 模态框 (Modal) */
-    .modal-overlay {
-      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.7);
-      backdrop-filter: blur(4px);
-      z-index: 1000;
-      display: none;
-      align-items: center;
-      justify-content: center;
-    }
-    .modal-overlay.open { display: flex; }
-    .modal {
-      background: var(--bg-panel);
-      width: 100%; max-width: 500px;
-      border-radius: var(--radius-lg);
-      border: 1px solid var(--border);
-      padding: 24px;
-      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
-    }
-    .modal-header { font-size: 18px; font-weight: 700; margin-bottom: 20px; display: flex; justify-content: space-between; }
-    .modal-footer { margin-top: 24px; display: flex; justify-content: flex-end; gap: 12px; }
-
-    /* 工具类 */
-    .text-mono { font-family: 'SFMono-Regular', monospace; }
-    .flex-row { display: flex; gap: 12px; align-items: center; }
-    .spacer { flex: 1; }
-    
-    /* Code block for chat */
-    .code-preview {
-      background: #0d0d0d;
-      border: 1px solid var(--border);
-      border-radius: var(--radius-md);
-      padding: 16px;
-      color: #a8b8d8;
-      font-family: monospace;
-      white-space: pre-wrap;
-      max-height: 400px;
-      overflow-y: auto;
-    }
-
+    input:checked+.slider { background:linear-gradient(135deg,#3b82f6,#2563eb); box-shadow:0 0 12px rgba(59,130,246,.4),inset 0 2px 4px rgba(0,0,0,.2); }
+    input:checked+.slider:before { transform:translateX(24px); }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+    .panel { animation:fadeIn .4s ease-out; }
+    .tabs { display:flex; gap:8px; margin:20px 0 16px; border-bottom:2px solid var(--border); }
+    .tab { padding:12px 24px; background:transparent; border:none; color:var(--muted); font-weight:600; font-size:14px; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-2px; transition:all .2s; }
+    .tab:hover { color:var(--text); background:rgba(79,143,255,.05); }
+    .tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+    .tab-content { display:none; }
+    .tab-content.active { display:block; }
   </style>
 </head>
 <body>
   <div class="container">
 
 
-<div class="container">
-  <header>
-    <h1>Q2API Console by zhang</h1>
-    <div class="nav-tabs">
-      <button class="tab-btn active" onclick="switchTab('accounts')">账号列表</button>
-      <button class="tab-btn" onclick="switchTab('create')">新建账号</button>
-      <button class="tab-btn" onclick="switchTab('login')">URL 登录</button>
-      <button class="tab-btn" onclick="switchTab('chat')">Chat 调试</button>
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('accounts')">账号管理</button>
+      <button class="tab" onclick="switchTab('create')">创建账号</button>
+      <button class="tab" onclick="switchTab('login')">URL登录</button>
+      <button class="tab" onclick="switchTab('chat')">Chat测试</button>
     </div>
-  </header>
 
     <div id="tab-accounts" class="tab-content active">
       <div class="panel">
@@ -375,194 +231,117 @@
         </div>
         <div class="list" id="accounts"></div>
       </div>
+    </div>
 
-      <div class="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th style="width: 50px">状态</th>
-              <th>标签 (Label)</th>
-              <th>Client ID / ID</th>
-              <th>Tokens</th>
-              <th>统计 (成功/失败)</th>
-              <th style="text-align: right">操作</th>
-            </tr>
-          </thead>
-          <tbody id="accounts-table-body">
-            <!-- JS 渲染 -->
-          </tbody>
-        </table>
-      </div>
-      <div id="empty-state" style="text-align:center; padding: 40px; color: var(--text-muted); display:none;">
-        暂无账号数据
+    <div id="tab-create" class="tab-content">
+      <div class="panel">
+        <h2>创建账号</h2>
+        <div class="row">
+          <div class="field"><label>label</label><input id="new_label" /></div>
+          <div class="field"><label>clientId</label><input id="new_clientId" /></div>
+          <div class="field"><label>clientSecret</label><input id="new_clientSecret" /></div>
+        </div>
+        <div class="row">
+          <div class="field"><label>refreshToken</label><input id="new_refreshToken" /></div>
+          <div class="field"><label>accessToken</label><input id="new_accessToken" /></div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label>other（JSON，可选）</label>
+            <textarea id="new_other" placeholder='{"note":"备注"}'></textarea>
+          </div>
+          <div class="field" style="max-width:220px">
+            <label>启用（仅启用账号会被用于请求）</label>
+            <div>
+              <label class="switch">
+                <input id="new_enabled" type="checkbox" checked />
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <button onclick="createAccount()">创建</button>
+        </div>
       </div>
     </div>
-  </div>
 
-  <!-- Tab: 新建账号 -->
-  <div id="tab-create" class="tab-pane">
-    <div class="panel" style="max-width: 800px; margin: 0 auto;">
-      <h2 style="margin-bottom:24px;">手动添加账号</h2>
-      <div class="form-grid">
-        <div class="form-group">
-          <label>Label (标签)</label>
-          <input id="new_label" placeholder="例如: My Personal Key" />
+    <div id="tab-login" class="tab-content">
+      <div class="panel">
+        <h2>URL 登录（5分钟超时）</h2>
+        <div class="row">
+          <div class="field"><label>label（可选）</label><input id="auth_label" /></div>
+          <div class="field" style="max-width:220px">
+            <label>启用（登录成功后新账号是否启用）</label>
+            <div>
+              <label class="switch">
+                <input id="auth_enabled" type="checkbox" checked />
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
         </div>
-        <div class="form-group">
-           <label>启用状态</label>
-           <div class="flex-row">
-             <label class="switch">
-               <input id="new_enabled" type="checkbox" checked />
-               <span class="slider"></span>
-             </label>
-             <span style="font-size:12px; color:var(--text-muted)">仅启用账号会被调度</span>
-           </div>
+        <div class="row">
+          <button onclick="startAuth()">开始登录</button>
+          <button class="btn-secondary" onclick="claimAuth()">等待授权并创建账号</button>
         </div>
-        <div class="form-group">
-          <label>Client ID</label>
-          <input id="new_clientId" class="text-mono" />
+        <div class="field">
+          <label>登录信息</label>
+          <pre class="code mono" id="auth_info">尚未开始</pre>
         </div>
-        <div class="form-group">
-          <label>Client Secret</label>
-          <input id="new_clientSecret" type="password" class="text-mono" />
-        </div>
-        <div class="form-group">
-          <label>Refresh Token</label>
-          <input id="new_refreshToken" class="text-mono" />
-        </div>
-        <div class="form-group">
-          <label>Access Token</label>
-          <input id="new_accessToken" class="text-mono" />
-        </div>
-        <div class="form-group" style="grid-column: 1/-1;">
-          <label>Metadata (JSON)</label>
-          <textarea id="new_other" placeholder='{"note": "备注信息"}'></textarea>
-        </div>
-      </div>
-      <div style="margin-top: 24px; text-align: right;">
-        <button class="btn btn-primary" onclick="createAccount()">创建账号</button>
       </div>
     </div>
-  </div>
 
-  <!-- Tab: URL 登录 -->
-  <div id="tab-login" class="tab-pane">
-    <div class="panel" style="max-width: 600px; margin: 0 auto;">
-      <h2 style="margin-bottom: 20px;">Device Code Login</h2>
-      <div class="form-group" style="margin-bottom: 20px;">
-        <label>新建账号标签</label>
-        <input id="auth_label" placeholder="自动登录账号" />
-      </div>
-      <div class="flex-row" style="margin-bottom: 24px;">
-        <button class="btn btn-primary" onclick="startAuth()">1. 获取登录链接</button>
-        <button class="btn btn-ghost" onclick="claimAuth()">2. 我已登录，获取 Token</button>
-      </div>
-      
-      <div class="code-preview" id="auth_info">等待操作...</div>
-    </div>
-  </div>
-
-  <!-- Tab: Chat 测试 -->
-  <div id="tab-chat" class="tab-pane">
-    <div class="panel">
-      <div class="flex-row" style="margin-bottom: 20px;">
-        <div class="form-group" style="width: 200px;">
-          <label>Model</label>
-          <input id="model" value="claude-sonnet-4" />
+    <div id="tab-chat" class="tab-content">
+      <div class="panel">
+        <h2>Chat 测试（OpenAI 兼容 /v1/chat/completions）</h2>
+        <div class="row">
+          <div class="field" style="max-width:300px">
+            <label>model</label>
+            <input id="model" value="claude-sonnet-4" />
+          </div>
+          <div class="field" style="max-width:180px">
+            <label>是否流式</label>
+            <select id="stream">
+              <option value="false">false（默认）</option>
+              <option value="true">true（SSE）</option>
+            </select>
+          </div>
+          <button class="right" onclick="send()">发送请求</button>
         </div>
-        <div class="form-group">
-          <label>Stream</label>
-          <select id="stream">
-            <option value="false">关闭 (Block)</option>
-            <option value="true">开启 (SSE)</option>
-          </select>
-        </div>
-        <div class="spacer"></div>
-        <button class="btn btn-primary" onclick="send()">发送请求</button>
-      </div>
-
-      <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-        <div class="form-group">
-          <label>Messages (JSON)</label>
-          <textarea id="messages" style="height: 400px; font-family: monospace;">[
+        <div class="field">
+          <label>messages（JSON）</label>
+          <textarea id="messages">[
   {"role":"system","content":"你是一个乐于助人的助手"},
-  {"role":"user","content":"你好，请用一句话介绍你自己"}
+  {"role":"user","content":"你好，请讲一个简短的故事"}
 ]</textarea>
         </div>
-        <div class="form-group">
-          <label>Response</label>
-          <div id="out" class="code-preview" style="height: 400px;"></div>
+        <div class="field">
+          <label>响应</label>
+          <pre class="code mono" id="out"></pre>
         </div>
       </div>
     </div>
   </div>
-</div>
 
-<!-- 编辑模态框 -->
-<div id="edit-modal" class="modal-overlay">
-  <div class="modal">
-    <div class="modal-header">
-      <span>编辑账号</span>
-      <button class="btn-icon" onclick="closeEditModal()">✕</button>
-    </div>
-    <div class="form-group" style="margin-bottom:16px;">
-      <label>Label</label>
-      <input id="edit_label" />
-    </div>
-    <div class="form-group" style="margin-bottom:16px;">
-      <label>Access Token (覆盖)</label>
-      <input id="edit_accessToken" class="text-mono" placeholder="留空则不修改" />
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeEditModal()">取消</button>
-      <button class="btn btn-primary" onclick="submitEdit()">保存修改</button>
-    </div>
-  </div>
-</div>
 
 <script>
-// --- 基础工具 ---
-function api(path) {
-  return ('/' + (path || '').replace(/^\/+/, '')).replace(/\/{2,}/g, '/');
-}
-
-function getAuthHeaders() {
-  const p = localStorage.getItem('adminPassword');
-  return p ? { 'Authorization': `Bearer ${p}` } : {};
-}
-
-async function authFetch(url, options = {}) {
-  const headers = { ...getAuthHeaders(), ...options.headers };
-  const r = await fetch(url, { ...options, headers });
-  if (r.status === 401) {
-    localStorage.removeItem('adminPassword');
-    window.location.href = '/login.html'; // 假设你的登录页是 login.html
-    throw new Error('Unauthorized');
-  }
-  return r;
-}
-
-// --- 页面逻辑 ---
 function switchTab(name) {
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-  
-  // 简单的事件委托查找或直接匹配
-  const btns = document.querySelectorAll('.tab-btn');
-  // 这里的逻辑稍微简化，依赖 HTML 结构顺序或点击事件
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
   event.target.classList.add('active');
   document.getElementById('tab-' + name).classList.add('active');
 }
 
-// --- 账号管理 (表格渲染) ---
-let currentAccounts = [];
-let editingId = null;
+function api(path){
+  const pathClean = ('/' + (path || '').replace(/^\/+/, '')).replace(/\/{2,}/g, '/');
+  return pathClean;
+}
 
-function renderTable(list) {
-  currentAccounts = list;
-  const tbody = document.getElementById('accounts-table-body');
-  const empty = document.getElementById('empty-state');
-  tbody.innerHTML = '';
+// Authentication helpers
+function getAuthPassword() {
+  return localStorage.getItem('adminPassword');
+}
 
 function getAuthHeaders() {
   const password = getAuthPassword();
@@ -935,50 +714,17 @@ function renderAccounts(list){
   root.appendChild(grid);
 }
 
-// --- API Actions ---
-
-async function loadAccounts() {
-  try {
+async function loadAccounts(){
+  try{
     const r = await authFetch(api('/v2/accounts'));
     const j = await r.json();
-    renderTable(j);
-  } catch (e) {
-    console.error(e); // Silent fail or show toast
+    renderAccounts(j);
+  } catch(e){
+    alert('加载账户失败：' + e);
   }
 }
 
-async function toggleAccount(id, enabled) {
-  try {
-    await authFetch(api(`/v2/accounts/${encodeURIComponent(id)}`), {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ enabled })
-    });
-    // Don't reload full list to keep UI smooth, state is local anyway
-  } catch (e) {
-    alert('更新状态失败');
-    loadAccounts(); // Revert
-  }
-}
-
-async function refreshAccount(id) {
-  try {
-    const r = await authFetch(api(`/v2/accounts/${encodeURIComponent(id)}/refresh`), { method: 'POST' });
-    if (!r.ok) throw new Error(await r.text());
-    await loadAccounts();
-  } catch(e) { alert('刷新失败: ' + e); }
-}
-
-async function deleteAccount(id) {
-  if (!confirm('确认删除该账号？此操作不可恢复。')) return;
-  try {
-    const r = await authFetch(api(`/v2/accounts/${encodeURIComponent(id)}`), { method: 'DELETE' });
-    if (!r.ok) throw new Error(await r.text());
-    await loadAccounts();
-  } catch(e) { alert('删除失败: ' + e); }
-}
-
-async function createAccount() {
+async function createAccount(){
   const body = {
     label: document.getElementById('new_label').value.trim() || null,
     clientId: document.getElementById('new_clientId').value.trim(),
@@ -986,59 +732,51 @@ async function createAccount() {
     refreshToken: document.getElementById('new_refreshToken').value.trim() || null,
     accessToken: document.getElementById('new_accessToken').value.trim() || null,
     enabled: document.getElementById('new_enabled').checked,
-    other: (() => {
+    other: (()=>{
       const t = document.getElementById('new_other').value.trim();
       if (!t) return null;
-      try { return JSON.parse(t); } catch { alert('Metadata JSON 格式错误'); throw new Error('bad json'); }
+      try { return JSON.parse(t); } catch { alert('other 不是合法 JSON'); throw new Error('bad other'); }
     })()
   };
-
-  try {
+  try{
     const r = await authFetch(api('/v2/accounts'), {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      method:'POST',
+      headers:{ 'content-type':'application/json' },
       body: JSON.stringify(body)
     });
-    if (!r.ok) throw new Error(await r.text());
-    alert('创建成功');
-    document.getElementById('new_clientId').value = ''; // Clear secret fields
-    document.getElementById('new_clientSecret').value = '';
-    switchTab('accounts');
-    loadAccounts();
-  } catch (e) { alert('创建失败: ' + e); }
+    if (!r.ok) {
+      const t = await r.text();
+      throw new Error(t);
+    }
+    await loadAccounts();
+  } catch(e){
+    alert('创建失败：' + e);
+  }
 }
 
-// --- Edit Modal ---
-function openEditModal(acc) {
-  editingId = acc.id;
-  document.getElementById('edit_label').value = acc.label || '';
-  document.getElementById('edit_accessToken').value = '';
-  document.getElementById('edit-modal').classList.add('open');
+async function deleteAccount(id){
+  if (!confirm('确认删除该账号？')) return;
+  try{
+    const r = await authFetch(api('/v2/accounts/' + encodeURIComponent(id)), { method:'DELETE' });
+    if (!r.ok) { throw new Error(await r.text()); }
+    await loadAccounts();
+  } catch(e){
+    alert('删除失败：' + e);
+  }
 }
 
-function closeEditModal() {
-  document.getElementById('edit-modal').classList.remove('open');
-  editingId = null;
-}
-
-async function submitEdit() {
-  if (!editingId) return;
-  const label = document.getElementById('edit_label').value.trim();
-  const at = document.getElementById('edit_accessToken').value.trim();
-  
-  const patch = { label };
-  if (at) patch.accessToken = at;
-
-  try {
-    const r = await authFetch(api(`/v2/accounts/${encodeURIComponent(editingId)}`), {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
+async function updateAccount(id, patch){
+  try{
+    const r = await authFetch(api('/v2/accounts/' + encodeURIComponent(id)), {
+      method:'PATCH',
+      headers:{ 'content-type':'application/json' },
       body: JSON.stringify(patch)
     });
-    if (!r.ok) throw new Error(await r.text());
-    closeEditModal();
-    loadAccounts();
-  } catch(e) { alert('修改失败: ' + e); }
+    if (!r.ok) { throw new Error(await r.text()); }
+    await loadAccounts();
+  } catch(e){
+    alert('更新失败：' + e);
+  }
 }
 
 async function refreshAccount(id){
@@ -1094,7 +832,7 @@ async function importAccounts(event){
  async function startAuth(){
    const body = {
      label: (document.getElementById('auth_label').value || '').trim() || null,
-     enabled: true
+     enabled: document.getElementById('auth_enabled').checked
    };
    try {
      const r = await authFetch(api('/v2/auth/start'), {
@@ -1105,77 +843,87 @@ async function importAccounts(event){
      if (!r.ok) throw new Error(await r.text());
      const j = await r.json();
      currentAuth = j;
+     const info = [
+       '验证链接: ' + j.verificationUriComplete,
+       '用户代码: ' + (j.userCode || ''),
+       'authId: ' + j.authId,
+       'expiresIn: ' + j.expiresIn + 's',
+       'interval: ' + j.interval + 's'
+     ].join('\\n');
      const el = document.getElementById('auth_info');
-     el.innerHTML = `验证链接: <a href="${j.verificationUriComplete}" target="_blank" style="color:var(--accent)">点击这里登录</a>\n` +
-                    `用户代码: ${j.userCode || ''}\n` +
-                    `Auth ID:  ${j.authId}`;
-     window.open(j.verificationUriComplete, '_blank');
+     el.textContent = info + '\\n\\n请在新窗口中打开上述链接完成登录。';
+     try { window.open(j.verificationUriComplete, '_blank'); } catch {}
    } catch(e){
      document.getElementById('auth_info').textContent = '启动失败：' + e;
    }
-}
+ }
 
-async function claimAuth(){
+ async function claimAuth(){
    if (!currentAuth || !currentAuth.authId) {
-     alert('请先点击“获取登录链接”');
+     document.getElementById('auth_info').textContent = '请先点击“开始登录”。';
      return;
    }
-   const el = document.getElementById('auth_info');
-   el.textContent += '\n\n正在轮询/等待授权...';
+   document.getElementById('auth_info').textContent += '\\n\\n正在等待授权并创建账号（最多5分钟）...';
    try{
      const r = await authFetch(api('/v2/auth/claim/' + encodeURIComponent(currentAuth.authId)), { method: 'POST' });
      const text = await r.text();
-     el.textContent = '完成！服务器响应：\n' + text;
-     loadAccounts();
+     let j;
+     try { j = JSON.parse(text); } catch { j = { raw: text }; }
+     document.getElementById('auth_info').textContent = '完成：\\n' + JSON.stringify(j, null, 2);
+     await loadAccounts();
    } catch(e){
-     el.textContent += '\n失败：' + e;
+     document.getElementById('auth_info').textContent += '\\n失败：' + e;
    }
-}
+ }
 
 async function send() {
   const model = document.getElementById('model').value.trim();
   const stream = document.getElementById('stream').value === 'true';
   const out = document.getElementById('out');
-  out.textContent = 'Thinking...';
+  out.textContent = '';
 
   let messages;
   try { messages = JSON.parse(document.getElementById('messages').value); }
-  catch(e){ out.textContent = 'JSON 格式错误'; return; }
+  catch(e){ out.textContent = 'messages 不是合法 JSON'; return; }
 
   const body = { model, messages, stream };
   const headers = { 'content-type': 'application/json' };
 
-  try {
-    if (!stream) {
-      const r = await authFetch(api('/v1/chat/completions'), { method:'POST', headers, body: JSON.stringify(body) });
-      const text = await r.text();
-      try { out.textContent = JSON.stringify(JSON.parse(text), null, 2); }
-      catch { out.textContent = text; }
-    } else {
-      const r = await authFetch(api('/v1/chat/completions'), { method:'POST', headers, body: JSON.stringify(body) });
-      out.textContent = '';
-      const reader = r.body.getReader();
-      const decoder = new TextDecoder();
-      while (true) {
-        const {value, done} = await reader.read();
-        if (done) break;
-        out.textContent += decoder.decode(value, {stream:true});
-      }
+  if (!stream) {
+    const r = await authFetch(api('/v1/chat/completions'), {
+      method:'POST',
+      headers,
+      body: JSON.stringify(body)
+    });
+    const text = await r.text();
+    try { out.textContent = JSON.stringify(JSON.parse(text), null, 2); }
+    catch { out.textContent = text; }
+  } else {
+    const r = await authFetch(api('/v1/chat/completions'), {
+      method:'POST',
+      headers,
+      body: JSON.stringify(body)
+    });
+    const reader = r.body.getReader();
+    const decoder = new TextDecoder();
+    while (true) {
+      const {value, done} = await reader.read();
+      if (done) break;
+      out.textContent += decoder.decode(value, {stream:true});
     }
-  } catch (e) {
-    out.textContent = '请求错误: ' + e;
   }
 }
 
-// Init
 window.addEventListener('DOMContentLoaded', () => {
-  if (!localStorage.getItem('adminPassword')) {
-    window.location.href = '/login.html'; // 记得确保文件名匹配
-  } else {
-    loadAccounts();
+  // Check authentication first
+  const password = getAuthPassword();
+  if (!password) {
+    window.location.href = '/login';
+    return;
   }
+  // Only load accounts if authenticated
+  loadAccounts();
 });
-
 </script>
 </body>
 </html>
