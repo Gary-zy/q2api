@@ -166,32 +166,59 @@
       white-space: nowrap;
       border-bottom: 1px solid var(--border);
     }
-
-    td {
-      padding: 12px 16px;
-      border-bottom: 1px solid var(--border-subtle);
-      color: var(--text-main);
-      vertical-align: middle;
+    .list { max-height:600px; overflow:auto; padding:2px; }
+    .list::-webkit-scrollbar { width:8px; }
+    .list::-webkit-scrollbar-track { background:rgba(0,0,0,.2); border-radius:4px; }
+    .list::-webkit-scrollbar-thumb { background:rgba(79,143,255,.3); border-radius:4px; }
+    .list::-webkit-scrollbar-thumb:hover { background:rgba(79,143,255,.5); }
+    .accounts-grid { display:grid; grid-template-columns:repeat(5, 1fr); gap:16px; }
+    @media(max-width:1600px){ .accounts-grid { grid-template-columns:repeat(4, 1fr); } }
+    @media(max-width:1280px){ .accounts-grid { grid-template-columns:repeat(3, 1fr); } }
+    @media(max-width:900px){ .accounts-grid { grid-template-columns:repeat(2, 1fr); } }
+    @media(max-width:600px){ .accounts-grid { grid-template-columns:1fr; } }
+    .card {
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:16px;
+      background:linear-gradient(145deg,rgba(12,19,34,.6),rgba(10,14,26,.8));
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      box-shadow:0 4px 16px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.02);
+      transition:all .2s;
+      cursor:pointer;
     }
-
-    tr:last-child td { border-bottom: none; }
-    tr:hover td { background: rgba(34,211,238,0.04); }
-
-    /* 表格中的特定列样式 */
-    .col-id { font-family: 'SFMono-Regular', Consolas, monospace; color: var(--text-muted); font-size: 12px; }
-    .col-label { font-weight: 700; color: #f8fafc; letter-spacing: 0.01em; }
-    .col-actions { display: flex; gap: 8px; }
-
-    /* 状态指示器 */
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      padding: 2px 8px;
-      border-radius: 99px;
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
+    .card:hover { border-color:rgba(79,143,255,.3); box-shadow:0 6px 20px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.03); transform:translateY(-2px); }
+    .card-header { display:flex; align-items:center; gap:8px; }
+    .card-title { font-weight:600; font-size:14px; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .card-status { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+    .card-status.enabled { background:var(--ok); box-shadow:0 0 8px var(--ok); }
+    .card-status.disabled { background:var(--muted); }
+    .card-stats { display:flex; flex-direction:column; gap:8px; font-size:12px; }
+    .card-stat { display:flex; flex-direction:column; gap:4px; }
+    .card-stat-header { display:flex; justify-content:space-between; align-items:center; }
+    .card-stat-label { color:var(--muted); font-size:11px; }
+    .card-stat-value { font-weight:600; font-size:13px; }
+    .card-stat-value.success { color:var(--ok); }
+    .card-stat-value.error { color:var(--danger); }
+    .progress-bar { height:6px; background:rgba(255,255,255,.05); border-radius:3px; overflow:hidden; }
+    .progress-fill { height:100%; transition:width .3s; border-radius:3px; }
+    .progress-fill.success { background:linear-gradient(90deg,var(--ok),#48ffa0); }
+    .progress-fill.error { background:linear-gradient(90deg,var(--danger),#ff6b7a); }
+    .card-id { font-family:monospace; font-size:11px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; }
+    .mono { font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; }
+    .code {
+      background:var(--code);
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:14px;
+      color:#d8e8ff;
+      max-height:300px;
+      overflow:auto;
+      white-space:pre-wrap;
+      font-size:13px;
+      line-height:1.6;
+      box-shadow:inset 0 2px 4px rgba(0,0,0,.3);
     }
     .badge-success { background: rgba(16, 185, 129, 0.15); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.2); }
     .badge-danger { background: rgba(239, 68, 68, 0.15); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.2); }
@@ -323,6 +350,8 @@
   </style>
 </head>
 <body>
+  <div class="container">
+
 
 <div class="container">
   <header>
@@ -335,16 +364,16 @@
     </div>
   </header>
 
-  <!-- Tab: 账号列表 -->
-  <div id="tab-accounts" class="tab-pane active">
-    <div class="panel">
-      <div class="flex-row" style="margin-bottom: 20px;">
-        <h2 style="margin:0; font-size:16px;">所有账号</h2>
-        <div class="spacer"></div>
-        <button class="btn btn-ghost" onclick="loadAccounts()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-          刷新
-        </button>
+    <div id="tab-accounts" class="tab-content active">
+      <div class="panel">
+        <h2>账号管理</h2>
+        <div class="row">
+          <button class="btn-secondary" onclick="loadAccounts()">刷新列表</button>
+          <button class="btn-secondary" onclick="exportAccounts()">导出</button>
+          <button class="btn-secondary" onclick="document.getElementById('importFile').click()">导入</button>
+          <input type="file" id="importFile" accept=".json" style="display:none" onchange="importAccounts(event)">
+        </div>
+        <div class="list" id="accounts"></div>
       </div>
 
       <div class="table-container">
@@ -535,85 +564,375 @@ function renderTable(list) {
   const empty = document.getElementById('empty-state');
   tbody.innerHTML = '';
 
-  if (!list || list.length === 0) {
-    empty.style.display = 'block';
+function getAuthHeaders() {
+  const password = getAuthPassword();
+  if (!password) return {};
+  return { 'Authorization': `Bearer ${password}` };
+}
+
+// Authenticated fetch wrapper
+async function authFetch(url, options = {}) {
+  const headers = { ...getAuthHeaders(), ...options.headers };
+  const response = await fetch(url, { ...options, headers });
+
+  if (response.status === 401) {
+    localStorage.removeItem('adminPassword');
+    window.location.href = '/login';
+    throw new Error('Unauthorized');
+  }
+
+  return response;
+}
+
+// Check authentication on page load - removed, combined with loadAccounts below
+
+// Virtual scroll state
+let accountsData = [];
+let virtualScroll = null;
+
+// Create account card element (small card for grid)
+function createAccountCard(acc) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.dataset.accountId = acc.id;
+  card.onclick = () => showAccountDetail(acc);
+
+  const header = document.createElement('div');
+  header.className = 'card-header';
+
+  const status = document.createElement('div');
+  status.className = 'card-status ' + (acc.enabled ? 'enabled' : 'disabled');
+
+  const title = document.createElement('div');
+  title.className = 'card-title';
+  title.textContent = acc.label || '(无标签)';
+
+  header.appendChild(status);
+  header.appendChild(title);
+  card.appendChild(header);
+
+  const stats = document.createElement('div');
+  stats.className = 'card-stats';
+
+  const successCount = acc.success_count || 0;
+  const errorCount = acc.error_count || 0;
+  const total = successCount + errorCount || 1;
+  const successPercent = (successCount / total) * 100;
+  const errorPercent = (errorCount / total) * 100;
+
+  const successStat = document.createElement('div');
+  successStat.className = 'card-stat';
+  successStat.innerHTML = `
+    <div class="card-stat-header">
+      <span class="card-stat-label">成功</span>
+      <span class="card-stat-value success">${successCount}</span>
+    </div>
+    <div class="progress-bar">
+      <div class="progress-fill success" style="width:${successPercent}%"></div>
+    </div>
+  `;
+
+  const errorStat = document.createElement('div');
+  errorStat.className = 'card-stat';
+  errorStat.innerHTML = `
+    <div class="card-stat-header">
+      <span class="card-stat-label">错误</span>
+      <span class="card-stat-value error">${errorCount}</span>
+    </div>
+    <div class="progress-bar">
+      <div class="progress-fill error" style="width:${errorPercent}%"></div>
+    </div>
+  `;
+
+  stats.appendChild(successStat);
+  stats.appendChild(errorStat);
+  card.appendChild(stats);
+
+  const idDiv = document.createElement('div');
+  idDiv.className = 'card-id';
+  idDiv.textContent = acc.id;
+  card.appendChild(idDiv);
+
+  return card;
+}
+
+// Show account detail modal
+function showAccountDetail(acc) {
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.8);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px;';
+  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+  const content = document.createElement('div');
+  content.className = 'panel';
+  content.style.cssText = 'max-width:800px;width:100%;max-height:90vh;overflow:auto;';
+
+  const header = document.createElement('div');
+  header.className = 'row';
+  header.style.marginBottom = '16px';
+  header.style.gap = '8px';
+
+  const labelInput = document.createElement('input');
+  labelInput.value = acc.label || '';
+  labelInput.placeholder = '标签';
+  labelInput.style.flex = '1';
+
+  const saveLabel = document.createElement('button');
+  saveLabel.className = 'btn-secondary';
+  saveLabel.textContent = '保存标签';
+  saveLabel.onclick = async () => {
+    await updateAccount(acc.id, { label: labelInput.value });
+    modal.remove();
+  };
+
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'btn-secondary';
+  closeBtn.textContent = '关闭';
+  closeBtn.onclick = () => modal.remove();
+
+  header.appendChild(labelInput);
+  header.appendChild(saveLabel);
+  header.appendChild(closeBtn);
+  content.appendChild(header);
+
+  const meta = document.createElement('div');
+  meta.className = 'kvs mono';
+  function row(k, v, color) {
+    const kEl = document.createElement('div'); kEl.className = 'muted'; kEl.textContent = k;
+    if (color) kEl.style.color = color;
+    const vEl = document.createElement('div'); vEl.textContent = v ?? '';
+    if (color) vEl.style.color = color;
+    meta.appendChild(kEl); meta.appendChild(vEl);
+  }
+  row('ID', acc.id);
+  row('启用', acc.enabled ? '是' : '否');
+  row('成功次数', acc.success_count ?? 0, 'var(--ok)');
+  row('错误次数', acc.error_count ?? 0, 'var(--danger)');
+  row('刷新状态', acc.last_refresh_status || '-');
+  row('刷新时间', acc.last_refresh_time || '-');
+  row('clientId', acc.clientId || '-');
+  row('refreshToken', acc.refreshToken ? '已设置' : '未设置');
+  row('accessToken', acc.accessToken ? '已设置' : '未设置');
+  row('创建时间', acc.created_at || '-');
+  row('更新时间', acc.updated_at || '-');
+  if (acc.other) {
+    row('其他信息', JSON.stringify(acc.other));
+  }
+  content.appendChild(meta);
+
+  const sep = document.createElement('div');
+  sep.className = 'sep';
+  content.appendChild(sep);
+
+  const actions = document.createElement('div');
+  actions.className = 'row';
+  actions.style.gap = '8px';
+
+  const toggleBtn = document.createElement('button');
+  toggleBtn.className = acc.enabled ? 'btn-secondary' : '';
+  toggleBtn.textContent = acc.enabled ? '禁用' : '启用';
+  toggleBtn.onclick = async () => {
+    await updateAccount(acc.id, { enabled: !acc.enabled });
+    modal.remove();
+  };
+
+  const refreshBtn = document.createElement('button');
+  refreshBtn.className = 'btn-warn';
+  refreshBtn.textContent = '刷新Token';
+  refreshBtn.onclick = async () => {
+    await refreshAccount(acc.id);
+    modal.remove();
+  };
+
+  const delBtn = document.createElement('button');
+  delBtn.className = 'btn-danger';
+  delBtn.textContent = '删除';
+  delBtn.onclick = async () => {
+    if (confirm('确认删除该账号？')) {
+      await deleteAccount(acc.id);
+      modal.remove();
+    }
+  };
+
+  actions.appendChild(toggleBtn);
+  actions.appendChild(refreshBtn);
+  actions.appendChild(delBtn);
+  content.appendChild(actions);
+
+  modal.appendChild(content);
+  document.body.appendChild(modal);
+}
+
+// Virtual scroll implementation with auto height adjustment
+class VirtualScroll {
+  constructor(container, items, itemHeight, bufferSize = 3) {
+    this.container = container;
+    this.items = items;
+    this.itemHeight = itemHeight;
+    this.bufferSize = bufferSize;
+    this.visibleStart = 0;
+    this.visibleEnd = 0;
+    this.renderedItems = new Map();
+    this.measuredHeights = new Map();
+    this.heightAdjusted = false;
+    
+    this.viewport = document.createElement('div');
+    this.viewport.className = 'list-viewport';
+    this.content = document.createElement('div');
+    this.content.className = 'list-content';
+    this.viewport.appendChild(this.content);
+    
+    this.container.innerHTML = '';
+    this.container.appendChild(this.viewport);
+    
+    this.container.addEventListener('scroll', () => this.onScroll());
+    this.render();
+    
+    // Auto-measure after first render
+    requestAnimationFrame(() => this.measureAndAdjust());
+  }
+  
+  onScroll() {
+    requestAnimationFrame(() => this.render());
+  }
+  
+  measureAndAdjust() {
+    let maxHeight = 0;
+    let needsAdjustment = false;
+    
+    // Measure all currently rendered items
+    for (const [idx, element] of this.renderedItems.entries()) {
+      const rect = element.getBoundingClientRect();
+      const actualHeight = rect.height + 12; // +12 for gap
+      this.measuredHeights.set(idx, actualHeight);
+      
+      if (actualHeight > maxHeight) {
+        maxHeight = actualHeight;
+      }
+      
+      // Check if actual height exceeds estimated height
+      if (actualHeight > this.itemHeight * 0.95) {
+        needsAdjustment = true;
+      }
+    }
+    
+    // Auto-adjust if needed
+    if (needsAdjustment && maxHeight > this.itemHeight) {
+      console.log(`[VirtualScroll] 检测到重影，调整高度: ${this.itemHeight}px -> ${Math.ceil(maxHeight)}px`);
+      this.itemHeight = Math.ceil(maxHeight);
+      this.heightAdjusted = true;
+      
+      // Re-render with new height
+      this.reposition();
+    }
+  }
+  
+  reposition() {
+    // Reposition all rendered items with new height
+    for (const [idx, element] of this.renderedItems.entries()) {
+      element.style.top = (idx * this.itemHeight) + 'px';
+    }
+    
+    // Update viewport height
+    this.viewport.style.height = (this.items.length * this.itemHeight) + 'px';
+  }
+  
+  render() {
+    const scrollTop = this.container.scrollTop;
+    const containerHeight = this.container.clientHeight;
+    
+    const start = Math.floor(scrollTop / this.itemHeight);
+    const end = Math.ceil((scrollTop + containerHeight) / this.itemHeight);
+    
+    const bufferedStart = Math.max(0, start - this.bufferSize);
+    const bufferedEnd = Math.min(this.items.length, end + this.bufferSize);
+    
+    if (bufferedStart === this.visibleStart && bufferedEnd === this.visibleEnd) {
+      return;
+    }
+    
+    this.visibleStart = bufferedStart;
+    this.visibleEnd = bufferedEnd;
+    
+    // Set viewport height
+    this.viewport.style.height = (this.items.length * this.itemHeight) + 'px';
+    
+    // Remove items outside visible range
+    for (const [idx, element] of this.renderedItems.entries()) {
+      if (idx < bufferedStart || idx >= bufferedEnd) {
+        element.remove();
+        this.renderedItems.delete(idx);
+      }
+    }
+    
+    // Add items in visible range
+    const fragment = document.createDocumentFragment();
+    let newItemsAdded = false;
+    
+    for (let i = bufferedStart; i < bufferedEnd; i++) {
+      if (!this.renderedItems.has(i)) {
+        const item = createAccountCard(this.items[i]);
+        item.style.position = 'absolute';
+        item.style.top = (i * this.itemHeight) + 'px';
+        item.style.left = '0';
+        item.style.right = '0';
+        this.renderedItems.set(i, item);
+        fragment.appendChild(item);
+        newItemsAdded = true;
+      }
+    }
+    
+    if (fragment.childNodes.length > 0) {
+      this.content.appendChild(fragment);
+      
+      // Measure new items after they're added to DOM
+      if (newItemsAdded && !this.heightAdjusted) {
+        requestAnimationFrame(() => this.measureAndAdjust());
+      }
+    }
+  }
+  
+  update(items) {
+    this.items = items;
+    this.renderedItems.clear();
+    this.measuredHeights.clear();
+    this.heightAdjusted = false;
+    this.content.innerHTML = '';
+    this.visibleStart = -1; // Force re-render
+    this.visibleEnd = -1;
+    requestAnimationFrame(() => {
+      this.render();
+      this.measureAndAdjust();
+    });
+  }
+  
+  destroy() {
+    this.container.removeEventListener('scroll', this.onScroll);
+    this.renderedItems.clear();
+    this.measuredHeights.clear();
+  }
+}
+
+function renderAccounts(list){
+  accountsData = list;
+  const root = document.getElementById('accounts');
+  root.innerHTML = '';
+
+  if (!Array.isArray(list) || list.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'muted';
+    empty.textContent = '暂无账号';
+    root.appendChild(empty);
     return;
   }
-  empty.style.display = 'none';
+
+  const grid = document.createElement('div');
+  grid.className = 'accounts-grid';
 
   list.forEach(acc => {
-    const tr = document.createElement('tr');
-    
-    // 状态开关
-    const statusCell = document.createElement('td');
-    const switchLabel = document.createElement('label');
-    switchLabel.className = 'switch';
-    const inp = document.createElement('input');
-    inp.type = 'checkbox';
-    inp.checked = !!acc.enabled;
-    inp.onchange = () => toggleAccount(acc.id, inp.checked);
-    const slider = document.createElement('span');
-    slider.className = 'slider';
-    switchLabel.append(inp, slider);
-    statusCell.appendChild(switchLabel);
-
-    // Label
-    const labelCell = document.createElement('td');
-    labelCell.innerHTML = `<div class="col-label">${acc.label || '<span style="opacity:0.5">未命名</span>'}</div>
-                           <div class="text-mono" style="font-size:11px; color:var(--text-dim)">Created: ${new Date(acc.created_at || Date.now()).toLocaleDateString()}</div>`;
-
-    // ID
-    const idCell = document.createElement('td');
-    idCell.className = 'col-id';
-    idCell.textContent = acc.id.substring(0, 8) + '...';
-    idCell.title = acc.id; // Tooltip full ID
-
-    // Tokens
-    const tokenCell = document.createElement('td');
-    tokenCell.innerHTML = `
-      <div style="font-size:12px; display:flex; align-items:center;">
-        <span class="token-dot ${acc.refreshToken ? 'active' : ''}" title="Refresh Token"></span> R
-        <span style="width:8px"></span>
-        <span class="token-dot ${acc.accessToken ? 'active' : ''}" title="Access Token"></span> A
-      </div>
-      <div style="font-size:11px; color:var(--text-dim); margin-top:4px;">Last: ${acc.last_refresh_status || '-'}</div>
-    `;
-
-    // Stats
-    const statsCell = document.createElement('td');
-    statsCell.innerHTML = `
-      <span class="badge badge-success">${acc.success_count || 0}</span>
-      <span class="badge badge-danger">${acc.error_count || 0}</span>
-    `;
-
-    // Actions
-    const actionCell = document.createElement('td');
-    actionCell.className = 'col-actions';
-    actionCell.style.textAlign = 'right';
-    
-    const btnRefresh = document.createElement('button');
-    btnRefresh.className = 'btn-icon';
-    btnRefresh.title = '刷新 Token';
-    btnRefresh.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>';
-    btnRefresh.onclick = () => refreshAccount(acc.id);
-
-    const btnEdit = document.createElement('button');
-    btnEdit.className = 'btn-icon';
-    btnEdit.title = '编辑';
-    btnEdit.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
-    btnEdit.onclick = () => openEditModal(acc);
-
-    const btnDel = document.createElement('button');
-    btnDel.className = 'btn-icon danger';
-    btnDel.title = '删除';
-    btnDel.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
-    btnDel.onclick = () => deleteAccount(acc.id);
-
-    actionCell.append(btnRefresh, btnEdit, btnDel);
-
-    tr.append(statusCell, labelCell, idCell, tokenCell, statsCell, actionCell);
-    tbody.appendChild(tr);
+    grid.appendChild(createAccountCard(acc));
   });
+
+  root.appendChild(grid);
 }
 
 // --- API Actions ---
@@ -722,9 +1041,57 @@ async function submitEdit() {
   } catch(e) { alert('修改失败: ' + e); }
 }
 
-// --- Login & Chat (Existing Logic Preserved) ---
-let currentAuth = null;
-async function startAuth(){
+async function refreshAccount(id){
+  try{
+    const r = await authFetch(api('/v2/accounts/' + encodeURIComponent(id) + '/refresh'), { method:'POST' });
+    if (!r.ok) { throw new Error(await r.text()); }
+    await loadAccounts();
+  } catch(e){
+    alert('刷新失败：' + e);
+  }
+}
+
+async function exportAccounts(){
+  try{
+    const r = await authFetch(api('/v2/accounts/export/json'));
+    if (!r.ok) { throw new Error(await r.text()); }
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'accounts.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch(e){
+    alert('导出失败：' + e);
+  }
+}
+
+async function importAccounts(event){
+  const file = event.target.files[0];
+  if (!file) return;
+  try{
+    const text = await file.text();
+    const data = JSON.parse(text);
+    const r = await authFetch(api('/v2/accounts/import/json'), {
+      method:'POST',
+      headers:{ 'content-type':'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!r.ok) { throw new Error(await r.text()); }
+    const result = await r.json();
+    alert(`成功导入 ${result.imported} 个账号`);
+    await loadAccounts();
+  } catch(e){
+    alert('导入失败：' + e);
+  } finally {
+    event.target.value = '';
+  }
+}
+
+ // URL Login (Device Authorization)
+ let currentAuth = null;
+ async function startAuth(){
    const body = {
      label: (document.getElementById('auth_label').value || '').trim() || null,
      enabled: true

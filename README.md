@@ -1,6 +1,7 @@
 # Amazon Q to API Bridge - Main Service
-
+python3 -m uvicorn app:app --host 0.0.0.0 --port 8000 --workers 4
 ## Star History
+
 
 [![Star History Chart](https://api.star-history.com/svg?repos=CassiopeiaCode/q2api&type=date&legend=top-left)](https://www.star-history.com/#CassiopeiaCode/q2api&type=date&legend=top-left)
 

@@ -7,6 +7,7 @@ import asyncio
 import importlib.util
 import random
 import secrets
+import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, Optional, List, Any, AsyncGenerator, Tuple
@@ -161,10 +162,10 @@ async def _init_global_client():
     )
     # 为流式响应设置更长的超时
     timeout = httpx.Timeout(
-        connect=1.0,  # 连接超时
+        connect=15.0,  # 连接超时
         read=300.0,    # 读取超时(流式响应需要更长时间)
-        write=1.0,    # 写入超时
-        pool=1.0      # 从连接池获取连接的超时时间(关键!)
+        write=15.0,    # 写入超时
+        pool=5.0      # 从连接池获取连接的超时时间(关键!)
     )
     GLOBAL_CLIENT = httpx.AsyncClient(mounts=mounts, timeout=timeout, limits=limits)
 
@@ -255,8 +256,10 @@ def _parse_allowed_keys_env() -> List[str]:
     return keys
 
 ALLOWED_API_KEYS: List[str] = _parse_allowed_keys_env()
-MAX_ERROR_COUNT: int = int(os.getenv("MAX_ERROR_COUNT", "100"))
+MAX_ERROR_COUNT: int = int(os.getenv("MAX_ERROR_COUNT", "10"))
 TOKEN_COUNT_MULTIPLIER: float = float(os.getenv("TOKEN_COUNT_MULTIPLIER", "1.0"))
+MAX_RETRIES: int = int(os.getenv("MAX_RETRIES", "2"))
+RETRY_DELAY: float = float(os.getenv("RETRY_DELAY", "1.0"))
 
 # Lazy Account Pool settings
 LAZY_ACCOUNT_POOL_ENABLED: bool = os.getenv("LAZY_ACCOUNT_POOL_ENABLED", "false").lower() in ("true", "1", "yes")
@@ -346,7 +349,7 @@ async def resolve_account_for_key(bearer_key: Optional[str]) -> Dict[str, Any]:
         candidates = await _list_enabled_accounts()
 
     if not candidates:
-        raise HTTPException(status_code=401, detail="No enabled account available")
+        raise HTTPException(status_code=401, detail="可用账户为空")
     return random.choice(candidates)
 
 # ------------------------------------------------------------------------------
@@ -445,7 +448,7 @@ async def refresh_access_token_in_db(account_id: str) -> Dict[str, Any]:
             (now, status, now, account_id),
         )
         # 记录刷新失败次数
-        await _update_stats(account_id, False)
+        await _update_stats(account_id, False, e)
         raise HTTPException(status_code=502, detail=f"Token refresh failed: {str(e)}")
     except Exception as e:
         # Ensure last_refresh_time is recorded even on unexpected errors
@@ -460,7 +463,7 @@ async def refresh_access_token_in_db(account_id: str) -> Dict[str, Any]:
             (now, status, now, account_id),
         )
         # 记录刷新失败次数
-        await _update_stats(account_id, False)
+        await _update_stats(account_id, False, e)
         raise
 
     await _db.execute(
@@ -481,37 +484,39 @@ async def get_account(account_id: str) -> Dict[str, Any]:
         raise HTTPException(status_code=404, detail="Account not found")
     return _row_to_dict(row)
 
-async def _update_stats(account_id: str, success: bool) -> None:
-    """
-    更新账户统计信息，带有重试机制以解决数据库锁定问题
-    """
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            if success:
-                await _db.execute("UPDATE accounts SET success_count=success_count+1, error_count=0, updated_at=? WHERE id=?",
-                            (time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()), account_id))
-            else:
-                row = await _db.fetchone("SELECT error_count FROM accounts WHERE id=?", (account_id,))
-                if row:
-                    new_count = (row['error_count'] or 0) + 1
-                    if new_count >= MAX_ERROR_COUNT:
-                        await _db.execute("UPDATE accounts SET error_count=?, enabled=0, updated_at=? WHERE id=?",
-                                   (new_count, time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()), account_id))
-                    else:
-                        await _db.execute("UPDATE accounts SET error_count=?, updated_at=? WHERE id=?",
-                                   (new_count, time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()), account_id))
-            break  # 成功执行，退出重试循环
+async def _update_stats(account_id: str, success: bool, error: Optional[Exception] = None) -> None:
+    if success:
+        await _db.execute("UPDATE accounts SET success_count=success_count+1, error_count=0, updated_at=? WHERE id=?",
+                    (time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()), account_id))
+    else:
+        error_type = "Unknown"
+        error_str = ""
+        is_network_error = False
 
-        except Exception as e:
-            if attempt < max_retries - 1 and "database is locked" in str(e).lower():
-                # 数据库锁定时短暂等待后重试
-                await asyncio.sleep(0.1 * (attempt + 1))
-                continue
-            else:
-                # 非数据库锁定错误或已达到最大重试次数，抛出异常
-                print(f"更新统计信息失败: {e}")
-                raise
+        if error:
+            error_str = str(error)
+            error_type = type(error).__name__
+
+            # Network/timeout errors - should NOT count towards ban
+            if "Timeout" in error_type or "ConnectError" in error_type or "NetworkError" in error_type:
+                is_network_error = True
+
+        if is_network_error:
+            # Network errors: don't count towards ban
+            print(f"[账户 {account_id[:8]}] 网络错误，不计入封禁 ({error_type})")
+        else:
+            # All other errors (including 4xx client errors): use MAX_ERROR_COUNT
+            row = await _db.fetchone("SELECT error_count FROM accounts WHERE id=?", (account_id,))
+            if row:
+                new_count = (row['error_count'] or 0) + 1
+                if new_count >= MAX_ERROR_COUNT:
+                    print(f"[账户 {account_id[:8]}] 已封禁 (错误{new_count}次, 类型: {error_type})")
+                    await _db.execute("UPDATE accounts SET error_count=?, enabled=0, updated_at=? WHERE id=?",
+                               (new_count, time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()), account_id))
+                else:
+                    print(f"[账户 {account_id[:8]}] 错误计数 {new_count}/{MAX_ERROR_COUNT} (类型: {error_type})")
+                    await _db.execute("UPDATE accounts SET error_count=?, updated_at=? WHERE id=?",
+                               (new_count, time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()), account_id))
 
 # ------------------------------------------------------------------------------
 # Dependencies
@@ -624,21 +629,7 @@ async def claude_messages(req: ClaudeRequest, account: Dict[str, Any] = Depends(
             # For simplicity, let's force stream=True internally and aggregate if req.stream is False.
             pass
     except Exception as e:
-        # 记录详细错误信息
-        error_msg = str(e)
-        if "429" in error_msg:
-            print(f"账户 {account['id'][:8]} 遇到速率限制错误: {error_msg}")
-        elif "database is locked" in error_msg.lower():
-            print(f"账户 {account['id'][:8]} 数据库锁定错误: {error_msg}")
-        else:
-            print(f"账户 {account['id'][:8]} 请求失败: {error_msg}")
-
-        # 尝试更新统计信息
-        try:
-            await _update_stats(account["id"], False)
-        except Exception as stats_error:
-            print(f"更新统计信息失败: {stats_error}")
-
+        await _update_stats(account["id"], False, e)
         raise
 
     # We always use streaming upstream to handle events properly
@@ -726,8 +717,8 @@ async def claude_messages(req: ClaudeRequest, account: Dict[str, Any] = Depends(
             except GeneratorExit:
                 # Client disconnected - update stats but don't re-raise
                 await _update_stats(account["id"], tracker.has_content if tracker else False)
-            except Exception:
-                await _update_stats(account["id"], False)
+            except Exception as e:
+                await _update_stats(account["id"], False, e)
                 raise
 
         # 强制使用流式响应（Claude Code 需要）
@@ -833,7 +824,7 @@ async def claude_messages(req: ClaudeRequest, account: Dict[str, Any] = Depends(
                 await event_iter.aclose()
         except Exception:
             pass
-        await _update_stats(account["id"], False)
+        await _update_stats(account["id"], False, e)
         raise
 
 @app.post("/v1/messages/count_tokens")
@@ -882,52 +873,118 @@ async def chat_completions(req: ChatCompletionRequest, account: Dict[str, Any] =
     model = req.model
     do_stream = bool(req.stream)
 
-    async def _send_upstream(stream: bool) -> Tuple[Optional[str], Optional[AsyncGenerator[str, None]], Any]:
-        access = account.get("accessToken")
+    async def _send_upstream(stream: bool, current_account: Optional[Dict[str, Any]] = None) -> Tuple[Optional[str], Optional[AsyncGenerator[str, None]], Any]:
+        used_account = current_account or account
+        access = used_account.get("accessToken")
         if not access:
-            refreshed = await refresh_access_token_in_db(account["id"])
+            refreshed = await refresh_access_token_in_db(used_account["id"])
             access = refreshed.get("accessToken")
             if not access:
                 raise HTTPException(status_code=502, detail="Access token unavailable after refresh")
-        # Note: send_chat_request signature changed, but we use keyword args so it should be fine if we don't pass raw_payload
-        # But wait, the return signature changed too! It now returns 4 values.
-        # We need to unpack 4 values.
-        result = await send_chat_request(access, [m.model_dump() for m in req.messages], model=model, stream=stream, client=GLOBAL_CLIENT)
-        return result[0], result[1], result[2] # Ignore the 4th value (event_stream) for OpenAI endpoint
+
+        last_error = None
+        for attempt in range(MAX_RETRIES + 1):
+            try:
+                result = await send_chat_request(access, [m.model_dump() for m in req.messages], model=model, stream=stream, client=GLOBAL_CLIENT)
+                if attempt > 0 or current_account:
+                    print(f"[账户 {used_account['id'][:8]}] 重试成功")
+                return result[0], result[1], result[2]
+            except Exception as e:
+                last_error = e
+                error_type = type(e).__name__
+                error_str = str(e)
+
+                # 判断是否需要同账户重试
+                should_retry_same = "Timeout" in error_type or "ConnectError" in error_type or "NetworkError" in error_type
+                # 判断是否是封禁错误（需要换号）
+                is_ban_error = "400" in error_str or "401" in error_str or "403" in error_str or "429" in error_str or "AccessDenied" in error_str
+
+                if should_retry_same and attempt < MAX_RETRIES:
+                    print(f"[账户 {used_account['id'][:8]}] 网络错误，{RETRY_DELAY}秒后重试 ({attempt + 1}/{MAX_RETRIES}): {error_type}")
+                    await asyncio.sleep(RETRY_DELAY)
+                else:
+                    raise
+
+        raise last_error
 
     if not do_stream:
-        try:
-            # Calculate prompt tokens
-            prompt_text = "".join([m.content for m in req.messages if isinstance(m.content, str)])
-            prompt_tokens = count_tokens(prompt_text)
+        # 换号重试逻辑
+        max_account_retries = 3
+        used_accounts = [account["id"]]
+        current_acc = account
 
-            text, _, tracker = await _send_upstream(stream=False)
-            await _update_stats(account["id"], bool(text))
-            
-            completion_tokens = count_tokens(text or "")
-            
-            return JSONResponse(content=_openai_non_streaming_response(
-                text or "",
-                model,
-                prompt_tokens=prompt_tokens,
-                completion_tokens=completion_tokens
-            ))
-        except Exception as e:
-            await _update_stats(account["id"], False)
-            raise
+        for acc_attempt in range(max_account_retries):
+            try:
+                # Calculate prompt tokens
+                prompt_text = "".join([m.content for m in req.messages if isinstance(m.content, str)])
+                prompt_tokens = count_tokens(prompt_text)
+
+                text, _, tracker = await _send_upstream(False, current_acc if acc_attempt > 0 else None)
+                await _update_stats(current_acc["id"], bool(text))
+
+                completion_tokens = count_tokens(text or "")
+
+                return JSONResponse(content=_openai_non_streaming_response(
+                    text or "",
+                    model,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens
+                ))
+            except Exception as e:
+                await _update_stats(current_acc["id"], False, e)
+
+                # 如果还有重试机会，换号重试
+                if acc_attempt < max_account_retries - 1:
+                    print(f"[账户 {current_acc['id'][:8]}] 失败，尝试换号重试")
+                    # 获取新账户
+                    candidates = await _list_enabled_accounts()
+                    candidates = [c for c in candidates if c["id"] not in used_accounts]
+                    if candidates:
+                        current_acc = random.choice(candidates)
+                        used_accounts.append(current_acc["id"])
+                        print(f"[账户 {current_acc['id'][:8]}] 使用新账户重试")
+                        continue
+
+                print(f"非流式聊天错误: {type(e).__name__}: {e}")
+                raise
     else:
         created = int(time.time())
         stream_id = f"chatcmpl-{uuid.uuid4()}"
         model_used = model or "unknown"
-        
-        it = None
-        try:
-            # Calculate prompt tokens
-            prompt_text = "".join([m.content for m in req.messages if isinstance(m.content, str)])
-            prompt_tokens = count_tokens(prompt_text)
 
-            _, it, tracker = await _send_upstream(stream=True)
-            assert it is not None
+        # 换号重试逻辑
+        max_account_retries = 3
+        used_accounts = [account["id"]]
+        current_acc = account
+
+        it = None
+        for acc_attempt in range(max_account_retries):
+            try:
+                # Calculate prompt tokens
+                prompt_text = "".join([m.content for m in req.messages if isinstance(m.content, str)])
+                prompt_tokens = count_tokens(prompt_text)
+
+                _, it, tracker = await _send_upstream(True, current_acc if acc_attempt > 0 else None)
+                assert it is not None
+                break
+            except Exception as e:
+                await _update_stats(current_acc["id"], False, e)
+
+                # 如果还有重试机会，换号重试
+                if acc_attempt < max_account_retries - 1:
+                    print(f"[账户 {current_acc['id'][:8]}] 失败，尝试换号重试")
+                    candidates = await _list_enabled_accounts()
+                    candidates = [c for c in candidates if c["id"] not in used_accounts]
+                    if candidates:
+                        current_acc = random.choice(candidates)
+                        used_accounts.append(current_acc["id"])
+                        print(f"[账户 {current_acc['id'][:8]}] 使用新账户重试")
+                        continue
+
+                print(f"聊天请求错误: {type(e).__name__}: {e}")
+                raise
+
+        try:
             
             async def event_gen() -> AsyncGenerator[str, None]:
                 completion_text = ""
@@ -969,23 +1026,25 @@ async def chat_completions(req: ChatCompletionRequest, account: Dict[str, Any] =
                     })
                     
                     yield "data: [DONE]\n\n"
-                    await _update_stats(account["id"], True)
+                    await _update_stats(current_acc["id"], True)
                 except GeneratorExit:
                     # Client disconnected - update stats but don't re-raise
-                    await _update_stats(account["id"], tracker.has_content if tracker else False)
-                except Exception:
-                    await _update_stats(account["id"], tracker.has_content if tracker else False)
+                    await _update_stats(current_acc["id"], tracker.has_content if tracker else False)
+                except Exception as e:
+                    print(f"流式响应错误: {type(e).__name__}: {e}")
+                    await _update_stats(current_acc["id"], tracker.has_content if tracker else False, e if not (tracker and tracker.has_content) else None)
                     raise
             
             return StreamingResponse(event_gen(), media_type="text/event-stream")
         except Exception as e:
+            print(f"聊天请求错误: {type(e).__name__}: {e}")
             # Ensure iterator (if created) is closed to release upstream connection
             try:
                 if it and hasattr(it, "aclose"):
                     await it.aclose()
             except Exception:
                 pass
-            await _update_stats(account["id"], False)
+            await _update_stats(account["id"], False, e)
             raise
 
 # ------------------------------------------------------------------------------
@@ -1341,6 +1400,25 @@ if CONSOLE_ENABLED:
     async def manual_refresh(account_id: str, _: bool = Depends(verify_admin_password)):
         return await refresh_access_token_in_db(account_id)
 
+    @app.get("/v2/accounts/export/json")
+    async def export_accounts(_: bool = Depends(verify_admin_password)):
+        rows = await _db.fetchall("SELECT * FROM accounts ORDER BY created_at DESC")
+        accounts = [_row_to_dict(r) for r in rows]
+        return JSONResponse(content={"accounts": accounts}, headers={"Content-Disposition": "attachment; filename=accounts.json"})
+
+    @app.post("/v2/accounts/import/json")
+    async def import_accounts(body: BatchAccountCreate, _: bool = Depends(verify_admin_password)):
+        now = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime())
+        imported = []
+        for acc in body.accounts:
+            account_id = str(uuid.uuid4())
+            await _db.execute(
+                "INSERT INTO accounts (id, label, clientId, clientSecret, refreshToken, accessToken, other, created_at, updated_at, enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (account_id, acc.label, acc.clientId, acc.clientSecret, acc.refreshToken or "", acc.accessToken or "", json.dumps(acc.other or {}, ensure_ascii=False), now, now, 1 if acc.enabled else 0)
+            )
+            imported.append(account_id)
+        return {"imported": len(imported), "account_ids": imported}
+
     # ------------------------------------------------------------------------------
     # Simple Frontend (minimal dev test page; full UI in v2/frontend/index.html)
     # ------------------------------------------------------------------------------
@@ -1409,6 +1487,10 @@ async def health():
 @app.on_event("startup")
 async def startup_event():
     """Initialize database and start background tasks on startup."""
+    # Suppress uvicorn traceback logging
+    logging.getLogger("uvicorn.error").setLevel(logging.CRITICAL)
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+
     await _init_global_client()
     await _ensure_db()
     asyncio.create_task(_refresh_stale_tokens())
