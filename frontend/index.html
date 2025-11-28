@@ -6,29 +6,30 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <style>
     :root {
-      /* 核心色板 */
-      --bg-body: #09090b;
-      --bg-panel: #18181b;
-      --bg-subtle: #27272a;
+      /* 调色盘：深夜霓虹 */
+      --bg-body: #030711;
+      --bg-panel: rgba(18, 24, 38, 0.9);
+      --bg-subtle: #101727;
       
-      --border: #3f3f46;
-      --border-subtle: #27272a;
+      --border: rgba(255, 255, 255, 0.08);
+      --border-subtle: rgba(255, 255, 255, 0.05);
       
-      --text-main: #f4f4f5;
-      --text-muted: #a1a1aa;
-      --text-dim: #52525b;
+      --text-main: #f8fafc;
+      --text-muted: #9ba3b4;
+      --text-dim: #5f6880;
 
-      --accent: #6366f1; /* Indigo */
-      --accent-hover: #4f46e5;
-      --accent-glow: rgba(99, 102, 241, 0.15);
+      --accent: #22d3ee; /* 青蓝 */
+      --accent-2: #7cfb6b; /* 荧光绿 */
+      --accent-hover: #0ea5e9;
+      --accent-glow: rgba(34, 211, 238, 0.24);
 
-      --success: #10b981;
+      --success: #22c55e;
       --danger: #ef4444;
       --warning: #f59e0b;
       
       --radius-sm: 6px;
-      --radius-md: 8px;
-      --radius-lg: 12px;
+      --radius-md: 10px;
+      --radius-lg: 14px;
     }
 
     /* 基础重置 */
@@ -36,19 +37,23 @@
     html, body { height: 100%; margin: 0; }
     
     body {
-      background: var(--bg-body);
+      background: radial-gradient(circle at 10% 20%, rgba(34, 211, 238, 0.12), transparent 26%),
+                  radial-gradient(circle at 80% 0%, rgba(124, 251, 107, 0.14), transparent 30%),
+                  radial-gradient(circle at 50% 80%, rgba(14, 165, 233, 0.18), transparent 28%),
+                  var(--bg-body);
       color: var(--text-main);
-      font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
-      line-height: 1.5;
+      font-family: "Sora", "Space Grotesk", "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+      line-height: 1.55;
       font-size: 14px;
-      padding-bottom: 40px;
+      padding-bottom: 48px;
+      letter-spacing: 0.01em;
     }
 
     /* 布局容器 */
     .container {
-      max-width: 1400px;
+      max-width: 1360px;
       margin: 0 auto;
-      padding: 24px;
+      padding: 28px 24px 0;
     }
 
     /* 头部区域 */
@@ -62,41 +67,46 @@
     }
 
     h1 {
-      font-size: 24px;
-      font-weight: 700;
-      letter-spacing: -0.5px;
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -0.6px;
       margin: 0;
-      background: linear-gradient(to right, #fff, #a1a1aa);
+      background: linear-gradient(120deg, #e2f3ff, #9ae6ff 45%, #7cfb6b 90%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
+      text-transform: uppercase;
     }
 
     /* 导航 Tabs - 胶囊风格 */
     .nav-tabs {
       display: inline-flex;
-      background: var(--bg-subtle);
-      padding: 4px;
-      border-radius: var(--radius-md);
-      gap: 2px;
+      background: rgba(255, 255, 255, 0.05);
+      padding: 5px;
+      border-radius: 999px;
+      gap: 4px;
+      border: 1px solid var(--border-subtle);
+      box-shadow: 0 10px 40px rgba(0,0,0,0.25);
     }
 
     .tab-btn {
       background: transparent;
       border: none;
       color: var(--text-muted);
-      padding: 8px 16px;
+      padding: 10px 18px;
       font-size: 13px;
-      font-weight: 500;
-      border-radius: var(--radius-sm);
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      border-radius: 999px;
       cursor: pointer;
       transition: all 0.2s;
     }
 
-    .tab-btn:hover { color: var(--text-main); }
+    .tab-btn:hover { color: var(--text-main); transform: translateY(-1px); }
     .tab-btn.active {
-      background: var(--bg-panel);
+      background: linear-gradient(135deg, rgba(34, 211, 238, 0.2), rgba(124, 251, 107, 0.2));
       color: var(--text-main);
-      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+      box-shadow: 0 12px 35px rgba(34, 211, 238, 0.25);
+      border: 1px solid rgba(124, 251, 107, 0.2);
     }
 
     /* 内容面板 */
@@ -109,18 +119,33 @@
     }
 
     .panel {
+      position: relative;
       background: var(--bg-panel);
       border: 1px solid var(--border-subtle);
       border-radius: var(--radius-lg);
       padding: 24px;
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+      overflow: hidden;
+      backdrop-filter: blur(8px);
     }
+    .panel::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 20% 20%, rgba(34, 211, 238, 0.07), transparent 38%),
+                  radial-gradient(circle at 90% 10%, rgba(124, 251, 107, 0.07), transparent 32%);
+      opacity: 0.9;
+      pointer-events: none;
+    }
+    .panel > * { position: relative; z-index: 1; }
 
     /* ---------------- 表格样式 (核心修改) ---------------- */
     .table-container {
       overflow-x: auto;
       border-radius: var(--radius-md);
       border: 1px solid var(--border-subtle);
+      background: rgba(255,255,255,0.01);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
     }
 
     table {
@@ -131,7 +156,7 @@
     }
 
     thead {
-      background: var(--bg-subtle);
+      background: linear-gradient(90deg, rgba(34, 211, 238, 0.12), rgba(124, 251, 107, 0.08));
     }
 
     th {
@@ -150,11 +175,11 @@
     }
 
     tr:last-child td { border-bottom: none; }
-    tr:hover td { background: rgba(255,255,255,0.02); }
+    tr:hover td { background: rgba(34,211,238,0.04); }
 
     /* 表格中的特定列样式 */
     .col-id { font-family: 'SFMono-Regular', Consolas, monospace; color: var(--text-muted); font-size: 12px; }
-    .col-label { font-weight: 600; color: #fff; }
+    .col-label { font-weight: 700; color: #f8fafc; letter-spacing: 0.01em; }
     .col-actions { display: flex; gap: 8px; }
 
     /* 状态指示器 */
@@ -186,25 +211,30 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      padding: 8px 16px;
+      padding: 9px 16px;
       border-radius: var(--radius-md);
-      font-weight: 500;
+      font-weight: 700;
       font-size: 13px;
       cursor: pointer;
       border: 1px solid transparent;
-      transition: all 0.2s;
+      transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease;
       gap: 6px;
+      letter-spacing: 0.02em;
     }
 
-    .btn-primary { background: var(--accent); color: white; }
-    .btn-primary:hover { background: var(--accent-hover); box-shadow: 0 0 12px var(--accent-glow); }
+    .btn-primary {
+      background: linear-gradient(120deg, var(--accent), var(--accent-2));
+      color: #041018;
+      box-shadow: 0 10px 30px rgba(34, 211, 238, 0.35);
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 14px 36px rgba(34, 211, 238, 0.42); }
     
-    .btn-ghost { background: transparent; color: var(--text-main); border: 1px solid var(--border); }
-    .btn-ghost:hover { background: var(--bg-subtle); border-color: var(--text-muted); }
+    .btn-ghost { background: rgba(255,255,255,0.04); color: var(--text-main); border: 1px solid var(--border); }
+    .btn-ghost:hover { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.12); }
 
-    .btn-icon { padding: 6px; border-radius: var(--radius-sm); color: var(--text-muted); background: transparent; border: none; }
-    .btn-icon:hover { background: var(--bg-subtle); color: var(--text-main); }
-    .btn-icon.danger:hover { background: rgba(239, 68, 68, 0.1); color: var(--danger); }
+    .btn-icon { padding: 7px; border-radius: var(--radius-sm); color: var(--text-muted); background: rgba(255,255,255,0.03); border: 1px solid var(--border); }
+    .btn-icon:hover { background: rgba(255,255,255,0.08); color: var(--text-main); transform: translateY(-1px); }
+    .btn-icon.danger:hover { background: rgba(239, 68, 68, 0.12); color: var(--danger); }
 
     /* 开关 (Switch) */
     .switch {
