@@ -307,7 +307,7 @@ async def send_chat_request(
     headers = _merge_headers(headers_from_log, access_token)
     
     local_client = False
-  # 使用重试机制发送 HTTP 请求
+    # 使用重试机制发送 HTTP 请求
     async def _request():
         return await _make_http_request(url, headers, payload_str, timeout, client)
 
@@ -322,97 +322,80 @@ async def send_chat_request(
 
     # Track if the response has been consumed to avoid double-close
     response_consumed = False
-        
-        async def _iter_events() -> AsyncGenerator[Any, None]:
-            nonlocal response_consumed
-            try:
-                if EventStreamParser and extract_event_info:
-                    # Use proper EventStreamParser
-                    async def byte_gen():
-                        async for chunk in resp.aiter_bytes():
-                            if chunk:
-                                yield chunk
-                    
-                    async for message in EventStreamParser.parse_stream(byte_gen()):
-                        event_info = extract_event_info(message)
-                        if event_info:
-                            event_type = event_info.get('event_type')
-                            payload = event_info.get('payload')
-                            if event_type and payload:
-                                yield (event_type, payload)
-                else:
-                    # Fallback to old parser
+    
+    async def _iter_events() -> AsyncGenerator[Any, None]:
+        nonlocal response_consumed
+        try:
+            if EventStreamParser and extract_event_info:
+                # Use proper EventStreamParser
+                async def byte_gen():
                     async for chunk in resp.aiter_bytes():
-                        if not chunk:
-                            continue
-                        events = parser.feed(chunk)
-                        for ev_headers, payload in events:
-                            parsed = _try_decode_event_payload(payload)
-                            if parsed is not None:
-                                event_type = None
-                                if ":event-type" in ev_headers:
-                                    event_type = ev_headers[":event-type"]
-                                yield (event_type, parsed)
-            except GeneratorExit:
-                # Client disconnected - ensure cleanup without re-raising
-                pass
-            except Exception:
-                if not tracker.has_content:
-                    raise
-            finally:
-                response_consumed = True
-                if resp and not resp.is_closed:
-                    await resp.aclose()
-                if local_client and client:
-                    await client.aclose()
+                        if chunk:
+                            yield chunk
+                
+                async for message in EventStreamParser.parse_stream(byte_gen()):
+                    event_info = extract_event_info(message)
+                    if event_info:
+                        event_type = event_info.get('event_type')
+                        payload = event_info.get('payload')
+                        if event_type and payload:
+                            yield (event_type, payload)
+            else:
+                # Fallback to old parser
+                async for chunk in resp.aiter_bytes():
+                    if not chunk:
+                        continue
+                    events = parser.feed(chunk)
+                    for ev_headers, payload in events:
+                        parsed = _try_decode_event_payload(payload)
+                        if parsed is not None:
+                            event_type = None
+                            if ":event-type" in ev_headers:
+                                event_type = ev_headers[":event-type"]
+                            yield (event_type, parsed)
+        except GeneratorExit:
+            # Client disconnected - ensure cleanup without re-raising
+            pass
+        except Exception:
+            if not tracker.has_content:
+                raise
+        finally:
+            response_consumed = True
+            if resp and not resp.is_closed:
+                await resp.aclose()
+            if local_client and client:
+                await client.aclose()
 
-        async def _iter_text() -> AsyncGenerator[str, None]:
-            async for event_type, parsed in _iter_events():
-                text = _extract_text_from_event(parsed)
-                if isinstance(text, str) and text:
-                    yield text
-        
-        def _schedule_cleanup():
-            """Schedule cleanup when generator is GC'd without being consumed.
-            - If there's a running loop: spawn tasks for aclose()
-            - Else: try a synchronous close fallback (best-effort)
-            """
-            try:
-                if not resp:
-                    return
-                if not getattr(resp, "is_closed", True):
-                    try:
-                        loop = asyncio.get_event_loop()
-                        if loop.is_running():
-                            asyncio.create_task(resp.aclose())
-                            if local_client and client:
-                                asyncio.create_task(client.aclose())
-                        else:
-                            # No running loop: best-effort close
-                            try:
-                                # Prefer async close via a temporary loop
-                                asyncio.run(resp.aclose())
-                                if local_client and client:
-                                    asyncio.run(client.aclose())
-                            except Exception:
-                                # Fallback to sync close if available
-                                if hasattr(resp, "close"):
-                                    try:
-                                        resp.close()  # type: ignore[attr-defined]
-                                    except Exception:
-                                        pass
-                                if local_client and client and hasattr(client, "close"):
-                                    try:
-                                        client.close()  # type: ignore[attr-defined]
-                                    except Exception:
-                                        pass
-                    except RuntimeError:
-                        # No event loop; best-effort sync close
+    async def _iter_text() -> AsyncGenerator[str, None]:
+        async for event_type, parsed in _iter_events():
+            text = _extract_text_from_event(parsed)
+            if isinstance(text, str) and text:
+                yield text
+
+    def _schedule_cleanup():
+        """Schedule cleanup when generator is GC'd without being consumed.
+        - If there's a running loop: spawn tasks for aclose()
+        - Else: try a synchronous close fallback (best-effort)
+        """
+        try:
+            if not resp:
+                return
+            if not getattr(resp, "is_closed", True):
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        asyncio.create_task(resp.aclose())
+                        if local_client and client:
+                            asyncio.create_task(client.aclose())
+                    else:
+                        # No running loop: best-effort close
                         try:
+                            # Prefer async close via a temporary loop
                             asyncio.run(resp.aclose())
                             if local_client and client:
                                 asyncio.run(client.aclose())
                         except Exception:
+                            # Fallback to sync close if available
                             if hasattr(resp, "close"):
                                 try:
                                     resp.close()  # type: ignore[attr-defined]
@@ -423,10 +406,28 @@ async def send_chat_request(
                                     client.close()  # type: ignore[attr-defined]
                                 except Exception:
                                     pass
-            except Exception:
-                # Final safety: swallow exceptions in finalizer
-                pass
-        
+                except RuntimeError:
+                    # No event loop; best-effort sync close
+                    try:
+                        asyncio.run(resp.aclose())
+                        if local_client and client:
+                            asyncio.run(client.aclose())
+                    except Exception:
+                        if hasattr(resp, "close"):
+                            try:
+                                resp.close()  # type: ignore[attr-defined]
+                            except Exception:
+                                pass
+                        if local_client and client and hasattr(client, "close"):
+                            try:
+                                client.close()  # type: ignore[attr-defined]
+                            except Exception:
+                                pass
+        except Exception:
+            # Final safety: swallow exceptions in finalizer
+            pass
+
+    try:
         if stream:
             # If raw_payload is used, we might want the raw event stream
             if raw_payload:
